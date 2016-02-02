@@ -260,7 +260,7 @@ locale Proof_Graph =
 
 datatype ('preform, 'rule) graph_node = Assumption 'preform | Conclusion 'preform | Rule 'rule
 
-type_synonym 'preform in_port = "('preform list \<times> 'preform)"
+type_synonym 'preform in_port = "('preform fset \<times> 'preform)"
 datatype 'preform out_port = Reg 'preform | Hyp 'preform "'preform in_port"
 
 context Abstract_Task
@@ -269,12 +269,20 @@ begin
     "nodes = shift (map Assumption assumptions) (shift (map Conclusion conclusions) (smap Rule rules))"
 
   fun inPorts where
-    "inPorts (Rule r) = fset_from_list (antecedent r)"
+    "inPorts (Rule r) = f_antecedent r"
    |"inPorts (Assumption r) = {||}"
-   |"inPorts (Conclusion r) = {| ([],r) |}"
+   |"inPorts (Conclusion r) = {| ({||}, r) |}"
+
+  definition outPortsRule where
+    "outPortsRule r = ffUnion ((\<lambda> a. (\<lambda> h. Hyp h a) |`| fst a) |`| f_antecedent r) |\<union>| Reg |`| f_consequent r"
+
+  lemma Reg_in_outPortsRule[simp]:  "Reg c |\<in>| outPortsRule r \<longleftrightarrow> c |\<in>| f_consequent r"
+    by (auto simp add: outPortsRule_def fmember.rep_eq ffUnion.rep_eq)
+  lemma Hyp_in_outPortsRule[simp]:  "Hyp h c |\<in>| outPortsRule r \<longleftrightarrow> c |\<in>| f_antecedent r \<and> h |\<in>| fst c"
+    by (auto simp add: outPortsRule_def fmember.rep_eq ffUnion.rep_eq)
 
   fun outPorts where
-    "outPorts (Rule r) = fset_from_list ([ Hyp h (hs,c) .  (hs,c) \<leftarrow> antecedent r, h \<leftarrow> hs ] @ map Reg (consequent r))"
+    "outPorts (Rule r) = outPortsRule r"
    |"outPorts (Assumption r) = {|Reg r|}"
    |"outPorts (Conclusion r) = {||}"
 
@@ -286,7 +294,7 @@ begin
    | "labelsOut _ (Hyp h c) = h"
 
   fun hyps where 
-     "hyps (Rule r) (Hyp h a) = (if a \<in> set (antecedent r) \<and> h \<in> set (fst a) then Some a else None)"
+     "hyps (Rule r) (Hyp h a) = (if a |\<in>| f_antecedent r \<and> h |\<in>| fst a then Some a else None)"
    | "hyps _ _ = None"
 
 end
@@ -297,11 +305,7 @@ begin
   sublocale Labeled_Signature nodes inPorts outPorts hyps labelsIn labelsOut
   proof
     case (goal1 n p1 p2)
-    thus ?case
-      apply(induction n p1 rule: hyps.induct)
-      apply (auto split: if_splits)
-      apply blast
-      done
+    thus ?case by(induction n p1 rule: hyps.induct) (auto  split: if_splits)
   qed
 end
 

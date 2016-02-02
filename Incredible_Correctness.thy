@@ -96,7 +96,7 @@ case (wf \<Gamma> v p pth)
     case (Hyp r h c)
 
     from Hyp `p' |\<in>| outPorts (nodeOf v')`
-    have "h \<in> set (fst c)" and "c \<in> set (antecedent r)" by auto
+    have "h |\<in>| fst c" and "c |\<in>| f_antecedent r" by auto
     hence "hyps (nodeOf v') (Hyp h c) = Some c" using Hyp by simp
 
     from well_scoped[OF ` _ \<in> edges`[unfolded Hyp] this]
@@ -142,14 +142,13 @@ case (wf \<Gamma> v p pth)
     moreover
 
     from Rule  `p' |\<in>| outPorts (nodeOf v')`
-    have "f \<in> set (consequent r)"
-      by auto
+    have "f |\<in>| f_consequent r" by simp
     moreover
 
     {
       fix x p h
-      assume 1: "x \<in> set (antecedent r)"
-      have "hyps_for (nodeOf v') x = fset_from_list (map (\<lambda> f. Hyp f x) (fst x))"
+      assume 1: "x |\<in>| f_antecedent r"
+      have "hyps_for (nodeOf v') x = (\<lambda> f. Hyp f x) |`| (fst x)"
         apply (rule fset_eqI)
         apply (rename_tac p')
         apply (case_tac p')
@@ -159,33 +158,31 @@ case (wf \<Gamma> v p pth)
     }
     note * = this
 
-    from `f \<in> set (consequent r)`
-    have "natEff_Inst (r, f) f (fset_from_list (map (apfst fset_from_list) (antecedent r)))" 
+    {
+    from `f |\<in>| f_consequent r`
+    have "f \<in> set (consequent r)" by (simp add: f_consequent_def)
+    hence "natEff_Inst (r, f) f (f_antecedent r)" 
       by (rule natEff_Inst.intros)
     hence "natEff (r, f) (subst (inst v') (annotate v' f))
-           ((\<lambda>n. ((\<lambda>p. subst (inst v') (annotate v' p)) |`| fst n, subst (inst v') (annotate v' (snd n)))) |`| fset_from_list (map (apfst fset_from_list) (antecedent r)))"
-          (is "natEff _ _ ?ant")
+           ((\<lambda>n. ((\<lambda>p. subst (inst v') (annotate v' p)) |`| fst n, subst (inst v') (annotate v' (snd n)))) |`| f_antecedent r)" (is "natEff _ _ ?ant")
       by (rule natEff.intros)
-    from effNatRuleI[OF this]
-    have "eff (NatRule (r, f)) (\<Gamma>, subst (inst v') (annotate v' f)) (fset_from_list (map (\<lambda>x. (fset_from_list (map (\<lambda>p. subst (inst v') (annotate v' p)) (fst x)) |\<union>| \<Gamma>, subst (inst v') (annotate v' (snd x)))) (antecedent r)))"
-      by (auto simp del: eff.simps simp add: comp_def)
-    hence "eff (NatRule (r, f)) (\<Gamma>, labelAtOut v' p') (fset_from_list (map (\<lambda>x. (fset_from_list (map (\<lambda>p. labelAtOut v' (Hyp p x)) (fst x)) |\<union>| \<Gamma>, labelAtIn v' x)) (antecedent r)))"
-      using Rule by (auto simp add: labelAtOut_def labelAtIn_def simp del: eff.simps)
-    hence "eff (NatRule (r, f)) (\<Gamma>, labelAtIn v p) (fset_from_list (map (\<lambda> a. (extra_assms v' a |\<union>| \<Gamma>, labelAtIn v' a)) (antecedent r)))"
-      apply (simp add: s del: eff.simps)        
-      apply (erule back_subst) back back 
-      apply (rule map_cong[OF refl])
-      apply (rule arg_cong) back back
-      apply (subst *)
-      apply assumption
-      apply simp
-      apply (simp add: comp_def)
-      done
+    also
+    have "subst (inst v') (annotate v' f) = labelAtOut v' p'" using Rule by (simp add: labelAtOut_def)
+    also
+    note s
+    also
+    have "?ant = ((\<lambda>x. (extra_assms v' x, labelAtIn  v' x)) |`| f_antecedent r)"
+      by (rule fimage_cong[OF refl])(auto simp add: labelAtIn_def labelAtOut_def *)
+    also
+    from effNatRuleI[OF calculation, where ctxt = \<Gamma>]
+    have "eff (NatRule (r, f)) (\<Gamma>, labelAtIn v p) ((\<lambda>x. (extra_assms v' x |\<union>| \<Gamma>, labelAtIn  v' x)) |`| f_antecedent r)"
+      by (auto simp del: eff.simps labelsIn.simps simp add: comp_def)
+    }
     moreover
 
     { fix x
       assume "x |\<in>| cont ?t"
-      then obtain a where "x = tree (labelAtOut  v' |`| hyps_for (Rule r) a |\<union>| \<Gamma>) v' a" and "a \<in> set (antecedent r)"
+      then obtain a where "x = tree (labelAtOut  v' |`| hyps_for (Rule r) a |\<union>| \<Gamma>) v' a" and "a |\<in>| f_antecedent r"
         by (auto simp add: Rule)
       note this(1)
       moreover
@@ -193,7 +190,7 @@ case (wf \<Gamma> v p pth)
       note  `v' |\<in>| vertices`
       moreover
 
-      from `a \<in> set (antecedent r)`
+      from `a |\<in>| f_antecedent r`
       have "a |\<in>| inPorts (nodeOf v')"
         by (simp add: Rule)
       moreover
@@ -217,10 +214,17 @@ case (wf \<Gamma> v p pth)
       have "\<exists>\<Gamma> v p pth. x = tree \<Gamma> v p \<and> v |\<in>| vertices \<and> p |\<in>| inPorts (nodeOf v) \<and>  global_assms \<subseteq> fset \<Gamma> \<and> terminal_vertex t \<and> path v t pth \<and> local_assms v p pth t \<subseteq> fset \<Gamma>"
         by blast
     }
+    moreover
+
+    from `f |\<in>| _`
+    have "f \<in> set (consequent r)" by (simp add: f_consequent_def)
+    with `r \<in> sset rules`
+    have "NatRule (r, f) \<in> sset (smap NatRule n_rules)"
+      by (auto simp add: stream.set_map n_rules_def no_empty_conclusions)
     ultimately
 
     show ?thesis using Rule
-      by (auto intro!: exI[where x = ?t]  simp add: comp_def stream.set_map no_empty_conclusions n_rules_def comp_assoc[symmetric] simp del: eff.simps)       
+      by (auto intro!: exI[where x = ?t]  simp add: comp_def   simp del: eff.simps)       
   qed
 qed
 

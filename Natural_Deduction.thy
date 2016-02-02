@@ -45,7 +45,7 @@ end
 context Abstract_Task 
 begin
   inductive natEff_Inst where
-    "c \<in> set (consequent r) \<Longrightarrow> natEff_Inst (r,c) c (fset_from_list (map (apfst fset_from_list) (antecedent r)))"
+    "c \<in> set (consequent r) \<Longrightarrow> natEff_Inst (r,c) c (f_antecedent r)"
 
   definition n_rules where
     "n_rules = flat (smap (\<lambda>r. map (\<lambda>c. (r,c)) (consequent r)) rules)"
