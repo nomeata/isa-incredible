@@ -36,21 +36,24 @@ begin
 
   inductive natEff where
     "natEff_Inst r c ant \<Longrightarrow> 
-     natEff r (subst s (annotate a c)) (fimage (\<lambda> n . (fimage (\<lambda> p. subst s (annotate a p)) (fst n),  subst s (annotate a (snd n)))) ant)"
- 
-  sublocale ND_Rules where
-    natEff = natEff and rules = rules.
+     natEff r (subst s (annotate a c)) ((\<lambda>n. ((\<lambda>p. subst s (annotate a p)) |`| fst n, subst s (annotate a (snd n)))) |`| ant)"
+
+  sublocale ND_Rules where natEff = natEff and rules = rules.
 end
 
 context Abstract_Task 
-begin
+begin           
   inductive natEff_Inst where
     "c \<in> set (consequent r) \<Longrightarrow> natEff_Inst (r,c) c (f_antecedent r)"
 
   definition n_rules where
     "n_rules = flat (smap (\<lambda>r. map (\<lambda>c. (r,c)) (consequent r)) rules)"
   
-  sublocale ND_Rules_Inst _ _ _ _ _ natEff_Inst n_rules ..
+  sublocale ND_Rules_Inst _ _ _ _ _ _ natEff_Inst n_rules ..
+
+  definition solved where
+    "solved \<longleftrightarrow> (\<forall> c. c |\<in>| conc_forms \<longrightarrow> (\<exists> t. wf t \<and> fst (root t) = (ass_forms, c)))"
+    
 end
 
 

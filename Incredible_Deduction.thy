@@ -217,6 +217,7 @@ begin
   end
 
 
+
 end
 
 locale Scoped_Graph = Port_Graph + Port_Graph_Signature_Scoped
@@ -252,7 +253,7 @@ begin
 end
 
 locale Solution =
-  Instantiation _ _ _ _ _ _ _ edges for edges :: "(('vertex \<times> 'outPort) \<times> 'vertex \<times> 'inPort) set" +
+  Instantiation _ _ _ _ _ _ _ _ edges for edges :: "(('vertex \<times> 'outPort) \<times> 'vertex \<times> 'inPort) set" +
   assumes solved: "((v\<^sub>1,p\<^sub>1),(v\<^sub>2,p\<^sub>2)) \<in> edges \<Longrightarrow> labelAtOut v\<^sub>1 p\<^sub>1 = labelAtIn v\<^sub>2 p\<^sub>2"
 
 locale Proof_Graph =
@@ -310,11 +311,12 @@ begin
 end
 
 locale Tasked_Proof_Graph =
-  Tasked_Signature annotate fv ran_fv subst antecedent consequent rules pre_fv assumptions conclusions  +
-  Proof_Graph nodes inPorts outPorts vertices nodeOf edges hyps fv ran_fv labelsIn labelsOut pre_fv subst annotate inst
+  Tasked_Signature annotate fv ran_fv closed subst antecedent consequent rules pre_fv assumptions conclusions  +
+  Proof_Graph nodes inPorts outPorts vertices nodeOf edges hyps fv ran_fv closed labelsIn labelsOut pre_fv subst annotate inst
   for annotate :: "'vertex \<Rightarrow> 'preform \<Rightarrow> 'form" 
     and fv :: "'form \<Rightarrow> ('var \<times> 'vertex) set" 
     and ran_fv :: "'subst \<Rightarrow> ('var \<times> 'vertex) set" 
+    and closed :: "'preform \<Rightarrow> bool"
     and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" 
     and antecedent :: "'rule \<Rightarrow> ('preform list \<times> 'preform) list" 
     and consequent :: "'rule \<Rightarrow> 'preform list" 
