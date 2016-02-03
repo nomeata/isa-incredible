@@ -52,7 +52,7 @@ begin
   sublocale ND_Rules_Inst _ _ _ _ _ _ natEff_Inst n_rules ..
 
   definition solved where
-    "solved \<longleftrightarrow> (\<forall> c. c |\<in>| conc_forms \<longrightarrow> (\<exists> t. wf t \<and> fst (root t) = (ass_forms, c)))"
+    "solved \<longleftrightarrow> (\<forall> c. c |\<in>| conc_forms \<longrightarrow> (\<exists> t. fst (root t) = (ass_forms, c) \<and> wf t \<and> tfinite t))"
     
 end
 

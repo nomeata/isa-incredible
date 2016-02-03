@@ -18,7 +18,7 @@ begin
 
   fun isReg  where
     "isReg v p = (case p of Hyp h c \<Rightarrow> None | Reg  c \<Rightarrow>
-        (case nodeOf v of Assumption a \<Rightarrow> None | Rule r \<Rightarrow>
+        (case nodeOf v of Conclusion a \<Rightarrow> None | Assumption a \<Rightarrow> None | Rule r \<Rightarrow>
         Some (r,c)
         ))"
 
@@ -36,6 +36,7 @@ begin
       (case isReg v' p' of None \<Rightarrow> {||} | Some (r, c) \<Rightarrow>
       ((\<lambda> p. tree (extra_assms v' p |\<union>| \<Gamma>) v' p) |`| inPorts (nodeOf v'))
       ))"
+
 
 lemma fst_root_tree[simp]: "fst (root (tree \<Gamma> v p)) = (\<Gamma>, labelAtIn v p)" by simp
 
@@ -78,8 +79,7 @@ lemma hyps_for_fimage: "hyps_for (Rule r) x = (if x |\<in>| f_antecedent r then 
   done
   
 theorem wf_tree:
-  assumes "v |\<in>| vertices"
-  assumes "p |\<in>| inPorts (nodeOf v)"
+  assumes "valid_in_port (v,p)"
   assumes "global_assms \<subseteq> fset \<Gamma>"
   assumes "terminal_vertex t"
   assumes "path v t pth"
@@ -89,7 +89,7 @@ using assms
 proof (coinduction arbitrary: \<Gamma> v p pth)
 case (wf \<Gamma> v p pth)
   let ?t = "tree \<Gamma> v p"
-  from saturated[OF wf(1,2)]
+  from saturated[OF wf(1)]
   obtain v' p'
   where e:"((v',p'),(v,p)) \<in> edges" and [simp]: "adjacentTo v p = (v',p')"
     by (auto simp add: adjacentTo_def, metis (no_types, lifting) eq_fst_iff tfl_some)
@@ -190,12 +190,8 @@ case (wf \<Gamma> v p pth)
       note this(1)
       moreover
 
-      note  `v' |\<in>| vertices`
-      moreover
-
-      from `a |\<in>| f_antecedent r`
-      have "a |\<in>| inPorts (nodeOf v')"
-        by (simp add: Rule)
+      from  `v' |\<in>| vertices` `a |\<in>| f_antecedent r`
+      have "valid_in_port (v',a)" by (simp add: Rule)
       moreover
 
       from `global_assms \<subseteq> fset \<Gamma>`
@@ -214,7 +210,7 @@ case (wf \<Gamma> v p pth)
         by (auto simp add: local_assms_cons)        
       ultimately
 
-      have "\<exists>\<Gamma> v p pth. x = tree \<Gamma> v p \<and> v |\<in>| vertices \<and> p |\<in>| inPorts (nodeOf v) \<and>  global_assms \<subseteq> fset \<Gamma> \<and> terminal_vertex t \<and> path v t pth \<and> local_assms v p pth t \<subseteq> fset \<Gamma>"
+      have "\<exists>\<Gamma> v p pth. x = tree \<Gamma> v p \<and> valid_in_port (v,p) \<and>  global_assms \<subseteq> fset \<Gamma> \<and> terminal_vertex t \<and> path v t pth \<and> local_assms v p pth t \<subseteq> fset \<Gamma>"
         by blast
     }
     ultimately
@@ -222,6 +218,145 @@ case (wf \<Gamma> v p pth)
     show ?thesis using Rule
       by (auto intro!: exI[where x = ?t]  simp add: comp_def   simp del: eff.simps)       
   qed
+qed
+
+lemma global_in_ass: "global_assms \<subseteq> fset ass_forms"
+proof
+  fix x
+  assume "x \<in> global_assms"
+  then obtain v pf where "v |\<in>| vertices" and "nodeOf v = Assumption pf" and "x = labelAtOut v (Reg pf)"
+    by (auto simp add: global_assms.simps)
+  from this (1,2) valid_nodes
+  have "Assumption pf \<in> sset nodes" by (auto simp add: fmember.rep_eq)
+  hence "pf \<in> set assumptions" by (auto simp add: nodes_def stream.set_map)
+  hence "closed pf" using assumptions_closed by auto
+  with `x = labelAtOut v (Reg pf)`
+  have "x = subst undefined (annotate undefined pf)" by (auto simp add: closed_eq labelAtOut_def)
+  thus "x \<in> fset ass_forms" using `pf \<in> set assumptions` by (auto simp add: ass_forms_def)
+qed
+
+primcorec edge_tree :: "'vertex \<Rightarrow> 'preform in_port \<Rightarrow> ('vertex, 'preform) edge' tree" where
+ "root (edge_tree v p) = (adjacentTo v p, (v,p))"
+ | "cont (edge_tree v p) =
+    (case adjacentTo v p of (v', p') \<Rightarrow>
+    (case isReg v' p' of None \<Rightarrow> {||} | Some (r, c) \<Rightarrow>
+    ((\<lambda> p. edge_tree  v' p) |`| inPorts (nodeOf v'))
+    ))"
+
+lemma tfinite_map_tree: "tfinite (map_tree f t) \<longleftrightarrow> tfinite t"
+proof
+  assume "tfinite (map_tree f t)"
+  thus "tfinite t"
+    by (induction "map_tree f t" arbitrary: t rule: tfinite.induct)
+       (fastforce intro:  tfinite.intros simp add:  tree.map_sel)
+next
+  assume "tfinite t"
+  thus "tfinite (map_tree f t)"
+    by (induction t rule: tfinite.induct)
+       (fastforce intro:  tfinite.intros simp add:  tree.map_sel)
+qed
+
+
+lemma finite_tree_edge_tree:
+  "tfinite (tree \<Gamma> v p) \<longleftrightarrow> tfinite (edge_tree v p)"
+proof-
+  have "map_tree (\<lambda> _. ())  (tree \<Gamma> v p) = map_tree (\<lambda> _. ()) (edge_tree v p)"
+   by(coinduction arbitrary: \<Gamma> v p)
+     (fastforce simp add: tree.map_sel rel_fset_def rel_set_def split: prod.split out_port.split graph_node.split option.split)
+  thus ?thesis by (metis tfinite_map_tree)
+qed
+
+coinductive forbidden_path :: "'vertex \<Rightarrow> (('vertex \<times> 'preform out_port) \<times> ('vertex \<times> 'preform in_port)) stream \<Rightarrow> bool"   where
+    forbidden_path: "((v\<^sub>1,p\<^sub>1),(v\<^sub>2,p\<^sub>2)) \<in> edges \<Longrightarrow> hyps (nodeOf v\<^sub>1) p\<^sub>1 = None \<Longrightarrow> forbidden_path v\<^sub>1 pth \<Longrightarrow> forbidden_path v\<^sub>2 (((v\<^sub>1,p\<^sub>1),(v\<^sub>2,p\<^sub>2))##pth)"
+
+lemma path_is_forbidden:
+  assumes "valid_in_port (v,p)"
+  assumes "ipath (edge_tree v p) es"
+  shows "forbidden_path v es"
+using assms
+proof(coinduction arbitrary: v p es)
+  case forbidden_path
+
+  let ?es' = "stl es"
+
+  from forbidden_path(2)
+  obtain t' where "root (edge_tree v p) = shd es" and "t' |\<in>| cont (edge_tree v p)" and "ipath t' ?es'"
+    by rule blast 
+
+  from `root (edge_tree v p) = shd es`
+  have [simp]: "shd es = (adjacentTo v p, (v,p))" by simp
+    
+  from saturated[OF `valid_in_port (v,p)`]
+  obtain v' p'
+  where e:"((v',p'),(v,p)) \<in> edges" and [simp]: "adjacentTo v p = (v',p')"
+    by (auto simp add: adjacentTo_def, metis (no_types, lifting) eq_fst_iff tfl_some)
+  let ?e = "((v',p'),(v,p))"
+
+  from `t' |\<in>| cont (edge_tree v p)`
+  obtain r a f where  "p' = Reg f" and "nodeOf v' = Rule r" and [simp]: "t' = edge_tree v' a" and "a |\<in>| f_antecedent r"
+    by (auto split: out_port.split_asm graph_node.split_asm option.split_asm )
+ 
+  have "es = ?e ## ?es'" by (cases es rule: stream.exhaust_sel) simp
+  moreover
+
+  have "?e \<in> edges" using e by simp
+  moreover
+
+  from `p' = Reg f` `nodeOf v' = Rule r`
+  have "hyps (nodeOf v') p' = None" by simp
+  moreover
+ 
+  from e valid_edges have "v' |\<in>| vertices"  by auto
+  with `nodeOf v' = Rule r` `a |\<in>| f_antecedent r`
+  have "valid_in_port (v', a)" by simp
+  moreover
+
+  have "ipath (edge_tree v' a) ?es'" using `ipath t' _` by simp
+  ultimately
+
+  show ?case by metis
+qed
+
+lemma forbidden_path_prefix_is_path:
+  assumes "forbidden_path v es"
+  obtains v' where  "path v' v (rev (stake n es))"
+  using assms
+  apply (atomize_elim)
+  apply (induction n arbitrary: v es)
+  apply simp
+  apply (simp add: path_snoc)
+  apply (subst (asm) forbidden_path.simps) back
+  apply auto
+  done
+
+lemma forbidden_path_prefix_is_hyp_free:
+  assumes "forbidden_path v es"
+  shows "hyps_free (rev (stake n es))"
+  using assms
+  apply (induction n arbitrary: v es)
+  apply (simp add: hyps_free_def)
+  apply (subst (asm) forbidden_path.simps) back
+  apply (force simp add: hyps_free_def)
+  done
+
+
+theorem finite_tree:
+  assumes "valid_in_port (v,p)"
+  shows "tfinite (tree \<Gamma> v p)"
+proof(rule ccontr)
+  let ?n = "Suc (fcard vertices)"
+  assume "\<not> tfinite (tree \<Gamma> v p)"
+  hence "\<not> tfinite (edge_tree v p)" unfolding finite_tree_edge_tree.
+  then obtain es  :: "('vertex, 'preform) edge' stream"
+    where "ipath (edge_tree v p) es" using Konig by blast
+  with `valid_in_port (v,p)`
+  have "forbidden_path v es" by (rule path_is_forbidden)
+  from forbidden_path_prefix_is_path[OF this] forbidden_path_prefix_is_hyp_free[OF this]
+  obtain v' where "path v' v (rev (stake ?n es))" and "hyps_free (rev (stake ?n es))"
+    by blast
+  hence "length (rev (stake ?n es)) \<le> fcard vertices"
+    by (rule hyps_free_limited)
+  thus False by simp
 qed
 
 lemma solved
@@ -232,40 +367,36 @@ proof(intro ballI allI conjI impI)
   then obtain pf where "pf \<in> set conclusions" and "c = subst undefined (annotate undefined pf)"
     by (auto simp add: conc_forms_def)
   from this(1) conclusions_present
-  obtain v where "v |\<in>| vertices " and "nodeOf v = Conclusion pf"
+  obtain v where "v |\<in>| vertices" and "nodeOf v = Conclusion pf"
     by (auto, metis (no_types, lifting) image_iff image_subset_iff notin_fset)
+
+  have "valid_in_port (v, ({||}, pf))"
+    using `v |\<in>| vertices` `nodeOf _ = _ `  by simp
+
 
   let ?t = "tree ass_forms v ({||}, pf)"
 
+  have "fst (root ?t) = (ass_forms, c)"
+    using `pf \<in> set conclusions` `c = _`
+    by (simp add: labelAtIn_def closed_eq conclusions_closed)
+  moreover
+
   have "wf ?t"
   proof(rule wf_tree)
-    show "v |\<in>| vertices" by fact
-    show "({||}, pf) |\<in>| inPorts (nodeOf v)" using `nodeOf _ = _ `  by simp
-    show "global_assms \<subseteq> fset ass_forms"
-    proof
-      fix x
-      assume "x \<in> global_assms"
-      then obtain v pf where "v |\<in>| vertices" and "nodeOf v = Assumption pf" and "x = labelAtOut v (Reg pf)"
-        by (auto simp add: global_assms.simps)
-      from this (1,2) valid_nodes
-      have "Assumption pf \<in> sset nodes" by (auto simp add: fmember.rep_eq)
-      hence "pf \<in> set assumptions" by (auto simp add: nodes_def stream.set_map)
-      hence "closed pf" using assumptions_closed by auto
-      with `x = labelAtOut v (Reg pf)`
-      have "x = subst undefined (annotate undefined pf)" by (auto simp add: closed_eq labelAtOut_def)
-      thus "x \<in> fset ass_forms" using `pf \<in> set assumptions` by (auto simp add: ass_forms_def)
-    qed
+    show "valid_in_port (v, ({||}, pf))" by fact
+    show "global_assms \<subseteq> fset ass_forms" by (rule global_in_ass)
     show "terminal_vertex v" using `nodeOf v = Conclusion pf` by auto
     show "path v v []"..
     show "local_assms v ({||}, pf) [] v \<subseteq> fset ass_forms"
       using `nodeOf v = Conclusion pf` by (auto simp add: local_assms_Nil)
   qed
   moreover
-  have "fst (root ?t) = (ass_forms, c)"
-    using `pf \<in> set conclusions` `c = _`
-    by (simp add: labelAtIn_def closed_eq conclusions_closed)
+
+  from `valid_in_port (v, ({||}, pf))`
+  have "tfinite ?t" by (rule finite_tree)
   ultimately
-  show "\<exists>t. wf  t \<and> fst (root t) = (ass_forms, c)" by blast
+  
+  show "\<exists>t. fst (root t) = (ass_forms, c) \<and> wf t \<and> tfinite t" by blast
 qed
 
 end

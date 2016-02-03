@@ -11,12 +11,14 @@ locale Port_Graph_Signature =
   fixes inPorts :: "'node \<Rightarrow> 'inPort fset"
   fixes outPorts :: "'node \<Rightarrow> 'outPort fset"
 
+type_synonym ('v, 'outPort, 'inPort) edge = "(('v \<times> 'outPort) \<times> ('v \<times> 'inPort))"
+
 locale Pre_Port_Graph =
   Port_Graph_Signature
   _ inPorts outPorts for inPorts :: "'node \<Rightarrow> 'inPort fset" and outPorts :: "'node \<Rightarrow> 'outPort fset"  +
   fixes vertices :: "'v fset"
   fixes nodeOf :: "'v \<Rightarrow> 'node"
-  fixes edges :: "(('v \<times> 'outPort) \<times> ('v \<times> 'inPort)) set"
+  fixes edges :: "('v, 'outPort, 'inPort) edge set"
 begin
   fun valid_out_port where "valid_out_port (v,p) \<longleftrightarrow> v |\<in>| vertices \<and> p |\<in>| outPorts (nodeOf v)"
   fun valid_in_port  where "valid_in_port (v,p) \<longleftrightarrow> v |\<in>| vertices \<and> p |\<in>| inPorts (nodeOf v)" 
@@ -29,7 +31,7 @@ begin
   lemma edge_begin_tup: "edge_begin x = fst (fst x)" by (metis edge_begin.simps prod.collapse)
   lemma edge_end_tup: "edge_end x = fst (snd x)" by (metis edge_end.simps prod.collapse)
 
-  inductive path :: "'v \<Rightarrow> 'v \<Rightarrow> (('v \<times> 'outPort) \<times> ('v \<times> 'inPort)) list \<Rightarrow> bool"   where
+  inductive path :: "'v \<Rightarrow> 'v \<Rightarrow> ('v, 'outPort, 'inPort) edge list \<Rightarrow> bool"   where
     path_empty: "path v v []" |
     path_cons: "e \<in> edges \<Longrightarrow> path (edge_end e) v' pth \<Longrightarrow> path (edge_begin e) v' (e#pth)"
 
@@ -43,6 +45,14 @@ begin
 
   lemma path_split: "path v v' (pth1@[e]@pth2) \<longleftrightarrow> path v (edge_end e) (pth1@[e]) \<and> path (edge_end e) v' pth2"
     by (induction pth1 arbitrary: v) (auto simp add: path_cons_simp edge_end_tup intro: path_empty)
+
+  lemma path_split2: "path v v' (pth1@(e#pth2)) \<longleftrightarrow> path v (edge_begin e) pth1 \<and> path (edge_begin e) v' (e#pth2)"
+    by (induction pth1 arbitrary: v) (auto simp add: path_cons_simp edge_begin_tup intro: path_empty)
+
+  lemma path_snoc: "path v v' (pth1@[e]) \<longleftrightarrow> e \<in> edges \<and> path v (edge_begin e) pth1 \<and> edge_end e = v'"
+    by (auto simp add: path_split2 path_cons_simp edge_end_tup edge_begin_tup)
+
+
 
   fun terminal_node where
     "terminal_node n \<longleftrightarrow> outPorts n = {||}"
@@ -228,8 +238,78 @@ locale Well_Scoped_Graph = Scoped_Graph +
 locale Acyclic_Graph = Scoped_Graph +
   assumes acyclic: "path v v pth \<Longrightarrow> pth = [] \<or> (\<exists> v\<^sub>1 p\<^sub>1 v\<^sub>2 p\<^sub>2. ((v\<^sub>1,p\<^sub>1),(v\<^sub>2,p\<^sub>2)) \<in> set pth \<and> hyps (nodeOf v\<^sub>1) p\<^sub>1 \<noteq> None)"
 
+context Acyclic_Graph
+begin
+
+definition hyps_free where
+  "hyps_free pth = (\<forall> v\<^sub>1 p\<^sub>1 v\<^sub>2 p\<^sub>2. ((v\<^sub>1,p\<^sub>1),(v\<^sub>2,p\<^sub>2)) \<in> set pth \<longrightarrow> hyps (nodeOf v\<^sub>1) p\<^sub>1 = None)"
+
+
+lemma hyps_free_acyclic: "path v v pth \<Longrightarrow> hyps_free pth \<Longrightarrow> pth = []"
+  by (drule acyclic) (fastforce simp add: hyps_free_def)
+
+lemma hyps_free_vertices_distinct:
+  assumes "path v v' pth"
+  assumes "hyps_free pth"
+  shows "distinct (map fst (map fst pth))"
+using assms
+proof(induction v v' pth)
+  case path_empty
+  show ?case by simp
+next
+  case (path_cons e v' pth)
+  from `hyps_free (e # pth)`
+  have "hyps_free pth" by (auto simp add: hyps_free_def)
+  note IH = path_cons.IH[OF this]
+  moreover
+  have "fst (fst e) \<notin> fst ` fst ` set pth"
+  proof
+    assume "fst (fst e) \<in> fst ` fst ` set pth"
+    then obtain pth1 e' pth2 where "pth = pth1@[e']@pth2" and "fst (fst e) = fst (fst e')"
+      apply (atomize_elim)
+      apply (induction pth)
+      apply auto
+      apply force
+      apply (metis Cons_eq_appendI image_eqI prod.sel(1))
+      done
+    with `path (edge_end e) v' pth`
+    have "path (edge_end e) (edge_begin e) pth1" by (simp add:  path_split2 edge_begin_tup)
+    with `e \<in> _`
+    have "path (edge_begin e) (edge_begin e) (e # pth1)"..
+    moreover
+    from `hyps_free (e # pth)` `pth = pth1@[e']@pth2`
+    have "hyps_free (e # pth1)"
+      by (auto simp add: hyps_free_def)
+    ultimately
+    show False  using hyps_free_acyclic by auto
+  qed
+  ultimately
+  show ?case by (auto simp add: comp_def)
+qed
+
+lemma hyps_free_limited:
+  assumes "path v v' pth"
+  assumes "hyps_free pth"
+  shows "length pth \<le> fcard vertices"
+proof-
+  have "length pth = length (map fst (map fst pth))" by simp
+  also
+  from hyps_free_vertices_distinct[OF assms]
+  have "\<dots> = card (set (map fst (map fst pth)))"
+    by (rule distinct_card[symmetric])
+  also have "\<dots> \<le> card (fset vertices)"
+  proof (rule card_mono[OF finite_fset])    
+    from assms(1) 
+    show "set (map fst (map fst pth)) \<subseteq> fset vertices"
+      by (induction v v' pth) (auto, metis valid_edges notin_fset splitD valid_out_port.simps)
+  qed
+  also have "\<dots> = fcard vertices" by (simp add: fcard.rep_eq)
+  finally show ?thesis.
+qed
+end
+
 locale Saturated_Graph = Port_Graph +
-  assumes saturated: "v |\<in>| vertices \<Longrightarrow> p |\<in>| inPorts (nodeOf v) \<Longrightarrow> \<exists> e \<in> edges . snd e = (v,p)"
+  assumes saturated: "valid_in_port (v,p) \<Longrightarrow> \<exists> e \<in> edges . snd e = (v,p)"
 
 locale Well_Shaped_Graph =  Well_Scoped_Graph + Acyclic_Graph + Saturated_Graph
 
@@ -242,7 +322,7 @@ locale Instantiation =
   Port_Graph nodes _ _ vertices _ edges +
   Labeled_Signature nodes  _ _ _ labelsIn labelsOut +
   Abstract_Formulas annotate pre_fv _ subst
-  for nodes :: "'node stream" and edges :: "(('vertex \<times> 'outPort) \<times> 'vertex \<times> 'inPort) set" and vertices :: "'vertex fset" and labelsIn :: "'node \<Rightarrow> 'inPort \<Rightarrow> 'preform" and labelsOut :: "'node \<Rightarrow> 'outPort \<Rightarrow> 'preform" 
+  for nodes :: "'node stream" and edges :: "('vertex, 'outPort, 'inPort) edge set" and vertices :: "'vertex fset" and labelsIn :: "'node \<Rightarrow> 'inPort \<Rightarrow> 'preform" and labelsOut :: "'node \<Rightarrow> 'outPort \<Rightarrow> 'preform" 
   and pre_fv :: "'preform \<Rightarrow> 'var set" and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" and annotate :: "'vertex \<Rightarrow> 'preform \<Rightarrow> 'form" +
   fixes inst :: "'vertex \<Rightarrow> 'subst"
 begin
@@ -263,6 +343,8 @@ datatype ('preform, 'rule) graph_node = Assumption 'preform | Conclusion 'prefor
 
 type_synonym 'preform in_port = "('preform fset \<times> 'preform)"
 datatype 'preform out_port = Reg 'preform | Hyp 'preform "'preform in_port"
+type_synonym ('v, 'preform) edge' = "(('v \<times> 'preform out_port) \<times> ('v \<times> 'preform in_port))"
+
 
 context Abstract_Task
 begin
@@ -326,7 +408,7 @@ locale Tasked_Proof_Graph =
     and conclusions :: "'preform list" 
     and vertices :: "'vertex fset" 
     and nodeOf :: "'vertex \<Rightarrow> ('preform, 'rule) graph_node" 
-    and edges :: "(('vertex \<times> 'preform out_port) \<times> ('vertex \<times> 'preform in_port)) set" 
+    and edges :: "('vertex, 'preform) edge' set" 
     and inst :: "'vertex \<Rightarrow> 'subst"  +
   assumes conclusions_present: "set (map Conclusion conclusions) \<subseteq> nodeOf ` fset vertices"
 
