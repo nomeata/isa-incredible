@@ -10,12 +10,6 @@ begin
   definition adjacentTo :: "'vertex \<Rightarrow> 'preform in_port \<Rightarrow> ('vertex \<times> 'preform out_port)" where
    "adjacentTo v p = (SOME ps. (ps, (v,p)) \<in> edges)" 
   
-  fun rule_for ::  "('vertex \<times> 'preform out_port) \<Rightarrow> ('rule \<times> 'preform) NatRule" where
-    "rule_for (v, p) =
-        (case p of Hyp h c \<Rightarrow> Axiom
-                 | Reg c \<Rightarrow> (case nodeOf v of Rule r \<Rightarrow> NatRule (r,c)
-                                            | Assumption a \<Rightarrow> Axiom))"
-
   fun isReg  where
     "isReg v p = (case p of Hyp h c \<Rightarrow> None | Reg  c \<Rightarrow>
         (case nodeOf v of Conclusion a \<Rightarrow> None | Assumption a \<Rightarrow> None | Rule r \<Rightarrow>

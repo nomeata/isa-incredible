@@ -336,8 +336,58 @@ locale Solution =
   Instantiation _ _ _ _ _ _ _ _ edges for edges :: "(('vertex \<times> 'outPort) \<times> 'vertex \<times> 'inPort) set" +
   assumes solved: "((v\<^sub>1,p\<^sub>1),(v\<^sub>2,p\<^sub>2)) \<in> edges \<Longrightarrow> labelAtOut v\<^sub>1 p\<^sub>1 = labelAtIn v\<^sub>2 p\<^sub>2"
 
-locale Proof_Graph =
-  Well_Shaped_Graph + Solution
+locale Proof_Graph =  Well_Shaped_Graph + Solution
+
+
+locale Port_Graph_Signature_Scoped_Vars =
+  Port_Graph_Signature nodes inPorts outPorts +
+  Abstract_Formulas annotate pre_fv _ subst
+  for nodes :: "'node stream" and inPorts :: "'node \<Rightarrow> 'inPort fset"  and outPorts :: "'node \<Rightarrow> 'outPort fset"
+  and pre_fv :: "'preform \<Rightarrow> 'var set" and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" and annotate :: "'vertex \<Rightarrow> 'preform \<Rightarrow> 'form" +
+  fixes local_vars :: "'node \<Rightarrow> 'inPort \<Rightarrow> 'var set"
+
+locale Well_Scoped_Solution =
+   Solution inPorts outPorts nodeOf hyps fv ran_fv closed nodes vertices labelsIn labelsOut pre_fv subst annotate inst edges +
+   Port_Graph_Signature_Scoped_Vars fv ran_fv closed nodes  inPorts outPorts pre_fv subst annotate local_vars
+   for inPorts :: "'node \<Rightarrow> 'inPort fset" 
+    and outPorts :: "'node \<Rightarrow> 'outPort fset" 
+    and nodeOf :: "'vertex \<Rightarrow> 'node" 
+    and hyps :: "'node \<Rightarrow> 'outPort \<Rightarrow> 'inPort option" 
+    and fv :: "'form \<Rightarrow> ('var \<times> 'vertex) set" 
+    and ran_fv :: "'subst \<Rightarrow> ('var \<times> 'vertex) set" 
+    and closed :: "'preform \<Rightarrow> bool" 
+    and nodes :: "'node stream" 
+    and vertices :: "'vertex fset" 
+    and labelsIn :: "'node \<Rightarrow> 'inPort \<Rightarrow> 'preform" 
+    and labelsOut :: "'node \<Rightarrow> 'outPort \<Rightarrow> 'preform" 
+    and pre_fv :: "'preform \<Rightarrow> 'var set" 
+    and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" 
+    and annotate :: "'vertex \<Rightarrow> 'preform \<Rightarrow> 'form" 
+    and inst :: "'vertex \<Rightarrow> 'subst" 
+    and edges :: "(('vertex \<times> 'outPort) \<times> 'vertex \<times> 'inPort) set" 
+    and local_vars :: "'node \<Rightarrow> 'inPort \<Rightarrow> 'var set"
+
+locale Scoped_Proof_Graph =
+  Well_Shaped_Graph  nodes inPorts outPorts vertices nodeOf edges hyps  +
+  Well_Scoped_Solution inPorts outPorts nodeOf hyps fv ran_fv closed nodes vertices labelsIn labelsOut pre_fv subst annotate inst edges local_vars
+   for inPorts :: "'node \<Rightarrow> 'inPort fset" 
+    and outPorts :: "'node \<Rightarrow> 'outPort fset" 
+    and nodeOf :: "'vertex \<Rightarrow> 'node" 
+    and hyps :: "'node \<Rightarrow> 'outPort \<Rightarrow> 'inPort option" 
+    and fv :: "'form \<Rightarrow> ('var \<times> 'vertex) set" 
+    and ran_fv :: "'subst \<Rightarrow> ('var \<times> 'vertex) set" 
+    and closed :: "'preform \<Rightarrow> bool" 
+    and nodes :: "'node stream" 
+    and vertices :: "'vertex fset" 
+    and labelsIn :: "'node \<Rightarrow> 'inPort \<Rightarrow> 'preform" 
+    and labelsOut :: "'node \<Rightarrow> 'outPort \<Rightarrow> 'preform" 
+    and pre_fv :: "'preform \<Rightarrow> 'var set" 
+    and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" 
+    and annotate :: "'vertex \<Rightarrow> 'preform \<Rightarrow> 'form" 
+    and inst :: "'vertex \<Rightarrow> 'subst" 
+    and edges :: "(('vertex \<times> 'outPort) \<times> 'vertex \<times> 'inPort) set" 
+    and local_vars :: "'node \<Rightarrow> 'inPort \<Rightarrow> 'var set"
+
 
 datatype ('preform, 'rule) graph_node = Assumption 'preform | Conclusion 'preform | Rule 'rule
 
@@ -380,6 +430,10 @@ begin
      "hyps (Rule r) (Hyp h a) = (if a |\<in>| f_antecedent r \<and> h |\<in>| fst a then Some a else None)"
    | "hyps _ _ = None"
 
+  fun localVars where
+     "localVars (Rule r) (Reg p) = fresh_vars r"
+   | "localVars _ _ = {}"
+
 end
 
 
@@ -393,19 +447,23 @@ begin
 end
 
 locale Tasked_Proof_Graph =
-  Tasked_Signature annotate fv ran_fv closed subst antecedent consequent rules pre_fv assumptions conclusions  +
+  Tasked_Signature ran_fv closed annotate pre_fv fv subst antecedent consequent fresh_vars rules assumptions conclusions  +
   Proof_Graph nodes inPorts outPorts vertices nodeOf edges hyps fv ran_fv closed labelsIn labelsOut pre_fv subst annotate inst
   for annotate :: "'vertex \<Rightarrow> 'preform \<Rightarrow> 'form" 
     and fv :: "'form \<Rightarrow> ('var \<times> 'vertex) set" 
     and ran_fv :: "'subst \<Rightarrow> ('var \<times> 'vertex) set" 
     and closed :: "'preform \<Rightarrow> bool"
     and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" 
+    and pre_fv :: "'preform \<Rightarrow> 'var set" 
+
     and antecedent :: "'rule \<Rightarrow> ('preform list \<times> 'preform) list" 
     and consequent :: "'rule \<Rightarrow> 'preform list" 
+    and fresh_vars :: "'rule \<Rightarrow> 'var set"
     and rules :: "'rule stream" 
-    and pre_fv :: "'preform \<Rightarrow> 'var set" 
+
     and assumptions :: "'preform list" 
     and conclusions :: "'preform list" 
+
     and vertices :: "'vertex fset" 
     and nodeOf :: "'vertex \<Rightarrow> ('preform, 'rule) graph_node" 
     and edges :: "('vertex, 'preform) edge' set" 
