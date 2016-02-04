@@ -391,9 +391,9 @@ locale Scoped_Proof_Graph =
 
 datatype ('preform, 'rule) graph_node = Assumption 'preform | Conclusion 'preform | Rule 'rule
 
-type_synonym 'preform in_port = "('preform fset \<times> 'preform)"
-datatype 'preform out_port = Reg 'preform | Hyp 'preform "'preform in_port"
-type_synonym ('v, 'preform) edge' = "(('v \<times> 'preform out_port) \<times> ('v \<times> 'preform in_port))"
+type_synonym ('preform, 'var) in_port = "('preform, 'var) antecedent"
+datatype ('preform, 'var) out_port = Reg 'preform | Hyp 'preform "('preform, 'var) in_port"
+type_synonym ('v, 'preform, 'var) edge' = "(('v \<times> ('preform, 'var) out_port) \<times> ('v \<times> ('preform, 'var) in_port))"
 
 
 context Abstract_Task
@@ -404,14 +404,14 @@ begin
   fun inPorts where
     "inPorts (Rule r) = f_antecedent r"
    |"inPorts (Assumption r) = {||}"
-   |"inPorts (Conclusion r) = {| ({||}, r) |}"
+   |"inPorts (Conclusion r) = {| plain_ant r |}"
 
   definition outPortsRule where
-    "outPortsRule r = ffUnion ((\<lambda> a. (\<lambda> h. Hyp h a) |`| fst a) |`| f_antecedent r) |\<union>| Reg |`| f_consequent r"
+    "outPortsRule r = ffUnion ((\<lambda> a. (\<lambda> h. Hyp h a) |`| a_hyps a) |`| f_antecedent r) |\<union>| Reg |`| f_consequent r"
 
   lemma Reg_in_outPortsRule[simp]:  "Reg c |\<in>| outPortsRule r \<longleftrightarrow> c |\<in>| f_consequent r"
     by (auto simp add: outPortsRule_def fmember.rep_eq ffUnion.rep_eq)
-  lemma Hyp_in_outPortsRule[simp]:  "Hyp h c |\<in>| outPortsRule r \<longleftrightarrow> c |\<in>| f_antecedent r \<and> h |\<in>| fst c"
+  lemma Hyp_in_outPortsRule[simp]:  "Hyp h c |\<in>| outPortsRule r \<longleftrightarrow> c |\<in>| f_antecedent r \<and> h |\<in>| a_hyps c"
     by (auto simp add: outPortsRule_def fmember.rep_eq ffUnion.rep_eq)
 
   fun outPorts where
@@ -420,18 +420,18 @@ begin
    |"outPorts (Conclusion r) = {||}"
 
   fun labelsIn where
-    "labelsIn _ p = snd p"
+    "labelsIn _ p = a_conc p"
 
   fun labelsOut where
     "labelsOut _ (Reg p) = p"
    | "labelsOut _ (Hyp h c) = h"
 
   fun hyps where 
-     "hyps (Rule r) (Hyp h a) = (if a |\<in>| f_antecedent r \<and> h |\<in>| fst a then Some a else None)"
+     "hyps (Rule r) (Hyp h a) = (if a |\<in>| f_antecedent r \<and> h |\<in>| a_hyps a then Some a else None)"
    | "hyps _ _ = None"
 
   fun localVars where
-     "localVars (Rule r) (Reg p) = fresh_vars r"
+     "localVars (Rule r) a = a_fresh r"
    | "localVars _ _ = {}"
 
 end
@@ -447,7 +447,7 @@ begin
 end
 
 locale Tasked_Proof_Graph =
-  Tasked_Signature ran_fv closed annotate pre_fv fv subst antecedent consequent fresh_vars rules assumptions conclusions  +
+  Tasked_Signature ran_fv closed annotate pre_fv fv subst antecedent consequent rules assumptions conclusions  +
   Proof_Graph nodes inPorts outPorts vertices nodeOf edges hyps fv ran_fv closed labelsIn labelsOut pre_fv subst annotate inst
   for annotate :: "'vertex \<Rightarrow> 'preform \<Rightarrow> 'form" 
     and fv :: "'form \<Rightarrow> ('var \<times> 'vertex) set" 
@@ -456,7 +456,7 @@ locale Tasked_Proof_Graph =
     and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" 
     and pre_fv :: "'preform \<Rightarrow> 'var set" 
 
-    and antecedent :: "'rule \<Rightarrow> ('preform list \<times> 'preform) list" 
+    and antecedent :: "'rule \<Rightarrow> ('preform, 'var) antecedent list" 
     and consequent :: "'rule \<Rightarrow> 'preform list" 
     and fresh_vars :: "'rule \<Rightarrow> 'var set"
     and rules :: "'rule stream" 
@@ -466,7 +466,7 @@ locale Tasked_Proof_Graph =
 
     and vertices :: "'vertex fset" 
     and nodeOf :: "'vertex \<Rightarrow> ('preform, 'rule) graph_node" 
-    and edges :: "('vertex, 'preform) edge' set" 
+    and edges :: "('vertex, 'preform, 'var) edge' set" 
     and inst :: "'vertex \<Rightarrow> 'subst"  +
   assumes conclusions_present: "set (map Conclusion conclusions) \<subseteq> nodeOf ` fset vertices"
 

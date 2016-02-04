@@ -13,7 +13,6 @@ lemma fimage_fset_from_list[simp]: "f |`| fset_from_list l = fset_from_list (map
 lemma fset_fset_from_list[simp]: "fset (fset_from_list l) = set l"  by transfer auto
 end
 
-
 locale Abstract_Formulas =
   fixes annotate :: "'annot \<Rightarrow> 'preform \<Rightarrow> 'form"
   fixes pre_fv :: "'preform \<Rightarrow> 'var set"
@@ -25,35 +24,37 @@ locale Abstract_Formulas =
   assumes fv_subst: "fv (subst s f) \<subseteq> ran_fv s"
   assumes closed_eq: "closed pf \<Longrightarrow> subst s1 (annotate a1 pf) = subst s2 (annotate a2 pf)"
 
+datatype ('preform, 'var) antecedent =
+  Antecedent (a_hyps: "'preform fset") (a_conc: "'preform") (a_fresh: "'var set")
+
+abbreviation plain_ant :: "'preform \<Rightarrow> ('preform, 'var) antecedent"
+  where "plain_ant f \<equiv> Antecedent {||} f {}"
+
 locale Abstract_Rules =
   Abstract_Formulas annotate pre_fv fv subst
   for annotate :: "'annot \<Rightarrow> 'preform \<Rightarrow> 'form"
   and pre_fv :: "'preform \<Rightarrow> 'var set"
   and fv :: "'form \<Rightarrow> ('var \<times> 'annot) set"
   and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" +
-  fixes antecedent :: "'rule \<Rightarrow> ('preform list \<times> 'preform) list"
+  fixes antecedent :: "'rule \<Rightarrow> ('preform, 'var) antecedent list"
   fixes consequent :: "'rule \<Rightarrow> 'preform list"
-  fixes fresh_vars :: "'rule \<Rightarrow> 'var set"
   and rules :: "'rule stream"
 begin
-  definition f_antecedent :: "'rule \<Rightarrow> ('preform fset \<times> 'preform) fset"
-    where "f_antecedent r = (fset_from_list (map (apfst fset_from_list) (antecedent r)))"
-  definition "f_consequent r = (fset_from_list (consequent r))"
+  definition f_antecedent :: "'rule \<Rightarrow> ('preform, 'var) antecedent fset"
+    where "f_antecedent r = fset_from_list (antecedent r)"
+  definition "f_consequent r = fset_from_list (consequent r)"
 end
 
-print_locale Abstract_Rules
-
 locale Abstract_Task =
-  Abstract_Rules ran_fv closed annotate pre_fv fv subst antecedent consequent fresh_vars rules
+  Abstract_Rules ran_fv closed annotate pre_fv fv subst antecedent consequent rules
   for  ran_fv :: "'subst \<Rightarrow> ('var \<times> 'annot) set" 
     and closed :: "'preform \<Rightarrow> bool" 
     and annotate :: "'annot \<Rightarrow> 'preform \<Rightarrow> 'form" 
     and pre_fv :: "'preform \<Rightarrow> 'var set" 
     and fv :: "'form \<Rightarrow> ('var \<times> 'annot) set" 
     and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" 
-    and antecedent :: "'rule \<Rightarrow> ('preform list \<times> 'preform) list" 
+    and antecedent :: "'rule \<Rightarrow> ('preform, 'var) antecedent list"
     and consequent :: "'rule \<Rightarrow> 'preform list" 
-    and fresh_vars :: "'rule \<Rightarrow> 'var set" 
     and rules :: "'rule stream" +
   fixes assumptions :: "'preform list"
   fixes conclusions :: "'preform list"
