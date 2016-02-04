@@ -70,17 +70,10 @@ begin
     shows "ps \<in> snd ` set pth"
   using assms by (auto simp add: scope.simps)
 
-
-  lemma scope_split:
-    assumes "v \<in> scope ps"
-    assumes "path v v' pth"
-    assumes "terminal_vertex v'"
-    obtains pth1 e pth2
-    where "pth = (pth1@[e])@pth2" and "path v (fst ps) (pth1@[e])" and "path (fst ps) v' pth2" and "snd e = ps" and "ps \<notin> snd ` set pth1"
-  proof-
-    from assms
-    have "ps \<in> snd ` set pth" by (auto simp add: scope.simps)
-    then obtain pth1 pth2 e  where "pth = pth1@[e]@pth2" and "snd e = ps" and "ps \<notin> snd ` set pth1"
+  lemma snd_set_split:
+    assumes "ps \<in> snd ` set pth"
+    obtains pth1 pth2 e  where "pth = pth1@[e]@pth2" and "snd e = ps" and "ps \<notin> snd ` set pth1"
+    using assms
     proof (atomize_elim, induction pth)
       case Nil thus ?case by simp
     next
@@ -101,6 +94,17 @@ begin
         thus ?thesis by blast
       qed
     qed
+
+  lemma scope_split:
+    assumes "v \<in> scope ps"
+    assumes "path v v' pth"
+    assumes "terminal_vertex v'"
+    obtains pth1 e pth2
+    where "pth = (pth1@[e])@pth2" and "path v (fst ps) (pth1@[e])" and "path (fst ps) v' pth2" and "snd e = ps" and "ps \<notin> snd ` set pth1"
+  proof-
+    from assms
+    have "ps \<in> snd ` set pth" by (auto simp add: scope.simps)
+    then obtain pth1 pth2 e  where "pth = pth1@[e]@pth2" and "snd e = ps" and "ps \<notin> snd ` set pth1" by (rule snd_set_split)
     
     from `path _ _ _` and `pth = pth1@[e]@pth2`
     have "path v (edge_end e) (pth1@[e])" and "path (edge_end e) v' pth2" by (metis path_split)+
@@ -123,6 +127,25 @@ locale Port_Graph = Pre_Port_Graph +
 locale Pruned_Port_Graph = Port_Graph +
   assumes pruned: "\<And>v.  v |\<in>| vertices \<Longrightarrow> (\<exists>pth v'. path v v' pth \<and> terminal_vertex v')"
 begin
+  lemma scopes_not_refl:
+    assumes "v |\<in>| vertices"
+    shows "v \<notin> scope (v,p)"
+  proof(rule notI)
+    assume "v \<in> scope (v,p)"
+
+    from pruned[OF assms]
+    obtain pth t where "terminal_vertex t" and "path v t pth" and least: "\<forall> pth'. path v t pth' \<longrightarrow> length pth \<le> length pth'"
+      by atomize_elim (auto simp del: terminal_vertex.simps elim: ex_has_least_nat)
+        
+    from scope_split[OF `v \<in> scope (v,p)` `path v t pth` `terminal_vertex t`]
+    obtain pth1 e pth2 where "pth = (pth1 @ [e]) @ pth2" "path v t pth2" by (metis fst_conv)
+
+    from this(2) least
+    have "length pth \<le> length pth2" by auto
+    with `pth = _`
+    show False by auto
+  qed
+
   lemma scopes_nest:
     fixes ps1 ps2
     (* assumes "valid_in_port ps1" and "valid_in_port ps2" not needed *)
@@ -215,7 +238,7 @@ begin
 
   lemma hyps_for'_subset: "hyps_for' n p \<subseteq> fset (outPorts n)"
     using hyps_correct by (meson hyps_for'.cases notin_fset subsetI)
-
+ 
   context includes fset.lifting
   begin
   lift_definition hyps_for  :: "'node \<Rightarrow> 'inPort \<Rightarrow> 'outPort fset" is hyps_for'
@@ -225,9 +248,10 @@ begin
   lemma hyps_for_simp'[simp]: "h \<in> fset (hyps_for n p) \<longleftrightarrow> hyps n h = Some p"
     by transfer (simp add: hyps_for'.simps)
   end
-
-
-
+  lemma hyps_for_subset: "hyps_for n p |\<subseteq>| outPorts n"
+    using hyps_for'_subset
+    by (fastforce simp add: fmember.rep_eq hyps_for.rep_eq simp del: hyps_for_simp hyps_for_simp')
+ 
 end
 
 locale Scoped_Graph = Port_Graph + Port_Graph_Signature_Scoped
@@ -243,7 +267,6 @@ begin
 
 definition hyps_free where
   "hyps_free pth = (\<forall> v\<^sub>1 p\<^sub>1 v\<^sub>2 p\<^sub>2. ((v\<^sub>1,p\<^sub>1),(v\<^sub>2,p\<^sub>2)) \<in> set pth \<longrightarrow> hyps (nodeOf v\<^sub>1) p\<^sub>1 = None)"
-
 
 lemma hyps_free_acyclic: "path v v pth \<Longrightarrow> hyps_free pth \<Longrightarrow> pth = []"
   by (drule acyclic) (fastforce simp add: hyps_free_def)
@@ -306,12 +329,43 @@ proof-
   also have "\<dots> = fcard vertices" by (simp add: fcard.rep_eq)
   finally show ?thesis.
 qed
+
+lemma hyps_free_path_not_in_scope:
+  assumes "terminal_vertex t"
+  assumes "path v t pth"
+  assumes "hyps_free pth"
+  assumes "(v',p') \<in> snd ` set pth"
+  shows   "v' \<notin> scope (v, p)"
+proof
+  assume "v' \<in> scope (v,p)"
+
+  from `(v',p') \<in> snd \` set pth`
+  obtain pth1 pth2 e  where "pth = pth1@[e]@pth2" and "snd e = (v',p')" by (rule snd_set_split)
+  from `path v t pth`[unfolded `pth = _ `] `snd e = _`
+  have "path v v' (pth1@[e])" and "path v' t pth2" unfolding path_split by (auto simp add: edge_end_tup)
+  
+  from `v' \<in> scope (v,p)` `terminal_vertex t` `path v' t pth2`
+  have "(v,p) \<in> snd ` set pth2" by (rule scope_find)
+  then obtain pth2a e' pth2b  where "pth2 = pth2a@[e']@pth2b" and "snd e' = (v,p)"  by (rule snd_set_split)
+  from `path v' t pth2`[unfolded `pth2 = _ `] `snd e' = _`
+  have "path v' v (pth2a@[e'])" and "path v t pth2b" unfolding path_split by (auto simp add: edge_end_tup)
+  
+  from `path v v' (pth1@[e])` `path v' v (pth2a@[e'])`
+  have "path v v ((pth1@[e])@(pth2a@[e']))" by (rule path_appendI)
+  moreover
+  from `hyps_free pth` `pth = _` `pth2 = _`
+  have "hyps_free ((pth1@[e])@(pth2a@[e']))" by (auto simp add: hyps_free_def)
+  ultimately
+  have "((pth1@[e])@(pth2a@[e'])) = []" by (rule hyps_free_acyclic)
+  thus False by simp
+qed
+
 end
 
 locale Saturated_Graph = Port_Graph +
   assumes saturated: "valid_in_port (v,p) \<Longrightarrow> \<exists> e \<in> edges . snd e = (v,p)"
 
-locale Well_Shaped_Graph =  Well_Scoped_Graph + Acyclic_Graph + Saturated_Graph
+locale Well_Shaped_Graph =  Well_Scoped_Graph + Acyclic_Graph + Saturated_Graph + Pruned_Port_Graph
 
 locale Labeled_Signature = 
   Port_Graph_Signature_Scoped +
@@ -346,8 +400,8 @@ locale Port_Graph_Signature_Scoped_Vars =
   and pre_fv :: "'preform \<Rightarrow> 'var set" and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" and freshen :: "'vertex \<Rightarrow> 'preform \<Rightarrow> 'form" +
   fixes local_vars :: "'node \<Rightarrow> 'inPort \<Rightarrow> 'var set"
 
-locale Well_Scoped_Solution =
-   Solution inPorts outPorts nodeOf hyps fv ran_fv closed nodes vertices labelsIn labelsOut pre_fv subst freshen inst edges +
+locale Well_Scoped_Instantiation =
+   Instantiation  inPorts outPorts nodeOf hyps fv ran_fv closed nodes edges vertices labelsIn labelsOut pre_fv subst freshen inst +
    Port_Graph_Signature_Scoped_Vars fv ran_fv closed nodes  inPorts outPorts pre_fv subst freshen local_vars
    for inPorts :: "'node \<Rightarrow> 'inPort fset" 
     and outPorts :: "'node \<Rightarrow> 'outPort fset" 
@@ -364,12 +418,19 @@ locale Well_Scoped_Solution =
     and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" 
     and freshen :: "'vertex \<Rightarrow> 'preform \<Rightarrow> 'form" 
     and inst :: "'vertex \<Rightarrow> 'subst" 
-    and edges :: "(('vertex \<times> 'outPort) \<times> 'vertex \<times> 'inPort) set" 
-    and local_vars :: "'node \<Rightarrow> 'inPort \<Rightarrow> 'var set"
+    and edges :: "('vertex, 'outPort, 'inPort) edge set" 
+    and local_vars :: "'node \<Rightarrow> 'inPort \<Rightarrow> 'var set" +
+  assumes well_scoped_inst: "valid_in_port (v,p) \<Longrightarrow> var \<in> local_vars (nodeOf v) p \<Longrightarrow> freshenV v var \<in> ran_fv (inst v') \<Longrightarrow> v' \<in> scope (v,p)"
+begin
+  lemma out_of_scope: "valid_in_port (v,p) \<Longrightarrow> v' \<notin> scope (v,p) \<Longrightarrow> freshenV v ` local_vars (nodeOf v) p \<inter> ran_fv (inst v') = {}"
+    using well_scoped_inst by auto
+end
+  
 
 locale Scoped_Proof_Graph =
   Well_Shaped_Graph  nodes inPorts outPorts vertices nodeOf edges hyps  +
-  Well_Scoped_Solution inPorts outPorts nodeOf hyps fv ran_fv closed nodes vertices labelsIn labelsOut pre_fv subst freshen inst edges local_vars
+  Solution inPorts outPorts nodeOf hyps fv ran_fv closed nodes vertices labelsIn labelsOut pre_fv subst freshen inst edges +
+  Well_Scoped_Instantiation inPorts outPorts nodeOf hyps fv ran_fv closed nodes vertices labelsIn labelsOut pre_fv subst freshen inst edges local_vars
    for inPorts :: "'node \<Rightarrow> 'inPort fset" 
     and outPorts :: "'node \<Rightarrow> 'outPort fset" 
     and nodeOf :: "'vertex \<Rightarrow> 'node" 
@@ -385,7 +446,7 @@ locale Scoped_Proof_Graph =
     and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" 
     and freshen :: "'vertex \<Rightarrow> 'preform \<Rightarrow> 'form" 
     and inst :: "'vertex \<Rightarrow> 'subst" 
-    and edges :: "(('vertex \<times> 'outPort) \<times> 'vertex \<times> 'inPort) set" 
+    and edges :: "('vertex, 'outPort, 'inPort) edge  set" 
     and local_vars :: "'node \<Rightarrow> 'inPort \<Rightarrow> 'var set"
 
 
@@ -430,9 +491,8 @@ begin
      "hyps (Rule r) (Hyp h a) = (if a |\<in>| f_antecedent r \<and> h |\<in>| a_hyps a then Some a else None)"
    | "hyps _ _ = None"
 
-  fun localVars where
-     "localVars (Rule r) a = a_fresh r"
-   | "localVars _ _ = {}"
+  fun local_vars :: "('preform, 'rule) graph_node \<Rightarrow> ('preform, 'var) in_port \<Rightarrow> 'var set"  where
+     "local_vars _ a = a_fresh a"
 
 end
 
@@ -448,7 +508,7 @@ end
 
 locale Tasked_Proof_Graph =
   Tasked_Signature ran_fv closed freshen pre_fv fv subst antecedent consequent rules assumptions conclusions  +
-  Proof_Graph nodes inPorts outPorts vertices nodeOf edges hyps fv ran_fv closed labelsIn labelsOut pre_fv subst freshen inst
+  Scoped_Proof_Graph inPorts outPorts nodeOf hyps fv ran_fv closed nodes vertices labelsIn labelsOut pre_fv subst freshen inst edges local_vars
   for freshen :: "'vertex \<Rightarrow> 'preform \<Rightarrow> 'form" 
     and fv :: "'form \<Rightarrow> ('var \<times> 'vertex) set" 
     and ran_fv :: "'subst \<Rightarrow> ('var \<times> 'vertex) set" 
@@ -469,6 +529,9 @@ locale Tasked_Proof_Graph =
     and edges :: "('vertex, 'preform, 'var) edge' set" 
     and inst :: "'vertex \<Rightarrow> 'subst"  +
   assumes conclusions_present: "set (map Conclusion conclusions) \<subseteq> nodeOf ` fset vertices"
-
+begin
+  lemma hyps_for_conclusion[simp]: "hyps_for (Conclusion n) p = {||}"
+    using hyps_for_subset by auto
+end
 
 end

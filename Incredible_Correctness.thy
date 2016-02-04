@@ -4,6 +4,14 @@ imports
   Natural_Deduction
 begin
 
+lemma ffUnion_fempty[simp]: "ffUnion fempty = fempty"
+  by (auto simp add: fmember.rep_eq ffUnion.rep_eq)
+
+lemma ffUnion_finsert[simp]: "ffUnion (finsert x S) = x |\<union>| ffUnion S"
+  by (auto simp add: fmember.rep_eq ffUnion.rep_eq)
+
+
+
 context Tasked_Proof_Graph
 begin
 
@@ -16,44 +24,61 @@ begin
         Some (r,c)
         ))"
 
-  fun extra_assms :: "'vertex \<Rightarrow> ('preform, 'var) in_port \<Rightarrow> 'form fset" where
-    "extra_assms v p = (\<lambda> p. labelAtOut v p) |`| hyps_for (nodeOf v) p"
 
-  primcorec tree :: "'form fset \<Rightarrow> 'vertex \<Rightarrow> ('preform, 'var) in_port \<Rightarrow> (('form entailment), ('rule \<times> 'preform) NatRule) dtree" where
-   "root (tree \<Gamma> v p) =
-      ((\<Gamma> \<turnstile> labelAtIn v p),
+  inductive_set global_assms' :: "'var itself \<Rightarrow> 'form set" for i  where
+    "v |\<in>| vertices \<Longrightarrow> nodeOf v = Assumption p \<Longrightarrow> labelAtOut v (Reg p) \<in> global_assms' i"
+
+  lemma finite_global_assms': "finite (global_assms' i)"
+  proof-
+    have "finite (fset vertices)" by (rule finite_fset)
+    moreover
+    have "global_assms' i \<subseteq> (\<lambda> v. case nodeOf v of Assumption p \<Rightarrow>  labelAtOut v (Reg p)) ` fset vertices"
+      by (force simp add: global_assms'.simps fmember.rep_eq image_iff )
+    ultimately
+    show ?thesis by (rule finite_surj)
+  qed
+
+  context includes fset.lifting
+  begin
+  lift_definition global_assms :: "'var itself \<Rightarrow> 'form fset" is global_assms' by (rule finite_global_assms')
+  lemmas global_assmsI = global_assms'.intros[Transfer.transferred]
+  lemmas global_assms_simps = global_assms'.simps[Transfer.transferred]
+  end
+
+  fun extra_assms :: "('vertex \<times> ('preform, 'var) in_port) \<Rightarrow> 'form fset" where
+    "extra_assms (v, p) = (\<lambda> p. labelAtOut v p) |`| hyps_for (nodeOf v) p"
+
+  fun hyps_along :: "('vertex, 'preform, 'var) edge' list \<Rightarrow> 'form fset" where
+    "hyps_along pth = ffUnion (extra_assms |`| snd |`| fset_from_list pth) |\<union>| global_assms TYPE('var)"
+
+  lemma hyps_alongE[consumes 1, case_names Hyp Assumption]:
+    assumes "f |\<in>| hyps_along pth"
+    obtains v p h where "(v,p) \<in> snd ` set pth" and "f = labelAtOut v h " and "h |\<in>| hyps_for (nodeOf v) p"
+    | v pf  where "v |\<in>| vertices" and "nodeOf v = Assumption pf" "f = labelAtOut v (Reg pf)" 
+    using assms
+    apply (auto simp add: fmember.rep_eq ffUnion.rep_eq  global_assms_simps[unfolded fmember.rep_eq])
+    apply (metis image_iff snd_conv)
+    done
+
+  primcorec tree :: "'vertex \<Rightarrow> ('preform, 'var) in_port \<Rightarrow> ('vertex, 'preform, 'var) edge' list \<Rightarrow>  (('form entailment), ('rule \<times> 'preform) NatRule) dtree" where
+   "root (tree v p pth) =
+      ((hyps_along ((adjacentTo v p,(v,p))#pth) \<turnstile> labelAtIn v p),
       (case adjacentTo v p of (v', p') \<Rightarrow>
       (case isReg v' p' of None \<Rightarrow> Axiom | Some (r, c) \<Rightarrow> NatRule (r,c))
       ))"
-   | "cont (tree \<Gamma> v p) =
+   | "cont (tree v p pth) =
       (case adjacentTo v p of (v', p') \<Rightarrow>
       (case isReg v' p' of None \<Rightarrow> {||} | Some (r, c) \<Rightarrow>
-      ((\<lambda> p. tree (extra_assms v' p |\<union>| \<Gamma>) v' p) |`| inPorts (nodeOf v'))
+      ((\<lambda> p''. tree v' p'' ((adjacentTo v p,(v,p))#pth)) |`| inPorts (nodeOf v'))
       ))"
 
 
-lemma fst_root_tree[simp]: "fst (root (tree \<Gamma> v p)) = (\<Gamma> \<turnstile> labelAtIn v p)" by simp
+lemma fst_root_tree[simp]: "fst (root (tree v p pth)) = (hyps_along ((adjacentTo v p,(v,p))#pth) \<turnstile> labelAtIn v p)" by simp
 
-lemma fst_root_tree_comp[simp]: "fst \<circ> root \<circ> tree \<Gamma> v = (\<lambda> p. (\<Gamma> \<turnstile> labelAtIn v p))" by auto
+(*
+lemma fst_root_tree_comp[simp]: "fst \<circ> root \<circ> tree \<Gamma> v = (\<lambda> p. (hyps_along pth \<turnstile> labelAtIn v p))" by auto
+*)
 
-inductive_set global_assms :: "'var itself \<Rightarrow> 'form set" for i  where
-  "v |\<in>| vertices \<Longrightarrow> nodeOf v = Assumption p \<Longrightarrow> labelAtOut v (Reg p) \<in> (global_assms i)"
-
-
-inductive_set local_assms for v p pth t where
-  "(v',p') \<in> insert (v,p) (snd ` set pth) \<Longrightarrow> h |\<in>| hyps_for (nodeOf v') p' \<Longrightarrow> labelAtOut v' h \<in> local_assms v p pth t"
-
-lemma local_assms_Nil:
-  "local_assms v' a [] t = labelAtOut v' ` fset (hyps_for (nodeOf v') a)"
-  by (auto 4 4 simp add: local_assms.simps )
-
-lemma local_assms_cons:
-  "local_assms v' a (((v', p'), (v, p))#pth) t = labelAtOut v' ` fset (hyps_for (nodeOf v') a) \<union> local_assms v p pth t"
-  apply (auto 4 4 simp add: local_assms.simps )
-  apply (auto 4 4 simp add: image_iff)
-  apply (metis  snd_conv)
-  apply fastforce
-  done
 
 lemma out_port_cases[consumes 1, case_names Assumption Hyp Rule]:
   assumes "p |\<in>| outPorts n"
@@ -69,23 +94,23 @@ lemma hyps_for_fimage: "hyps_for (Rule r) x = (if x |\<in>| f_antecedent r then 
   apply (case_tac p')
   apply (auto simp add:  split: if_splits out_port.splits)
   done
-  
+
 theorem wf_tree:
   assumes "valid_in_port (v,p)"
-  assumes "global_assms TYPE('var) \<subseteq> fset \<Gamma>"
   assumes "terminal_vertex t"
   assumes "path v t pth"
-  assumes "local_assms v p pth t \<subseteq> fset \<Gamma>"
-  shows "wf (tree \<Gamma> v p)"
+  assumes "hyps_free pth"
+  shows "wf (tree v p pth)"
 using assms
-proof (coinduction arbitrary: \<Gamma> v p pth)
-case (wf \<Gamma> v p pth)
-  let ?t = "tree \<Gamma> v p"
+proof (coinduction arbitrary: v p pth)
+case (wf v p pth)
+  let ?t = "tree v p pth"
   from saturated[OF wf(1)]
   obtain v' p'
   where e:"((v',p'),(v,p)) \<in> edges" and [simp]: "adjacentTo v p = (v',p')"
     by (auto simp add: adjacentTo_def, metis (no_types, lifting) eq_fst_iff tfl_some)
 
+  let ?\<Gamma> = "hyps_along (((v',p'),(v,p))#pth)"
   let ?l = "labelAtIn v p"
   
   from e valid_edges have "v' |\<in>| vertices" and "p' |\<in>| outPorts (nodeOf v')" by auto
@@ -93,6 +118,7 @@ case (wf \<Gamma> v p pth)
 
   from `((v', p'), (v, p)) \<in> edges`
   have s: "labelAtOut v' p' = labelAtIn v p"  by (rule solved)
+
 
   from `p' |\<in>| outPorts (nodeOf v')`
   show ?case
@@ -120,23 +146,22 @@ case (wf \<Gamma> v p pth)
     
     from `hyps (nodeOf v') (Hyp h c) = Some c`
     have "Hyp h c |\<in>| hyps_for (nodeOf v') c" by simp
+    hence "labelAtOut v' (Hyp h c) |\<in>| extra_assms (v',c)" by auto
     ultimately
 
-    have "labelAtOut v' (Hyp h c) \<in> local_assms v p pth t"..
-    with `local_assms v p pth t \<subseteq> fset \<Gamma>`
-    have "labelAtOut v' (Hyp h c) \<in> fset \<Gamma>" by (rule subsetD)
-    hence "labelAtIn v p |\<in>| \<Gamma>"  by (simp add: s[symmetric] Hyp fmember.rep_eq)
-    thus ?thesis using Hyp by (auto intro: exI[where x = ?t] simp add: eff.simps)
+    have "labelAtOut v' (Hyp h c) |\<in>| ?\<Gamma>" 
+      by (fastforce simp add: fmember.rep_eq ffUnion.rep_eq)
       
+    hence "labelAtIn v p |\<in>| ?\<Gamma>" by (simp add: s[symmetric] Hyp fmember.rep_eq)
+    thus ?thesis using Hyp by (auto intro: exI[where x = ?t] simp add: eff.simps simp del: hyps_along.simps)
   next
     case (Assumption f)
 
     from `v' |\<in>| vertices` `nodeOf v' = Assumption f`
-    have "labelAtOut v' (Reg f) \<in> global_assms TYPE('var)"
-      by (rule global_assms.intros)
-    with `global_assms TYPE('var) \<subseteq> fset \<Gamma>`
-    have "labelAtOut v' (Reg f) \<in> fset \<Gamma>" by (rule subsetD)
-    hence "labelAtIn v p |\<in>| \<Gamma>" by (simp add: s[symmetric] Assumption fmember.rep_eq)
+    have "labelAtOut v' (Reg f) |\<in>| global_assms TYPE('var)"
+      by (rule global_assmsI)
+    hence "labelAtOut v' (Reg f) |\<in>| ?\<Gamma>" by auto
+    hence "labelAtIn v p |\<in>| ?\<Gamma>" by (simp add: s[symmetric] Assumption fmember.rep_eq)
     thus ?thesis using Assumption
       by (auto intro: exI[where x = ?t] simp add: eff.simps)
   next
@@ -144,7 +169,14 @@ case (wf \<Gamma> v p pth)
     with `nodeOf v' \<in> sset nodes`
     have "r \<in> sset rules"
       by (auto simp add: nodes_def stream.set_map)
-    
+
+    from `_ \<in> edges` `path v t pth`
+    have "path v' t (((v', p'), (v, p))#pth)" by (simp add: path_cons_simp)
+
+    from Rule
+    have "hyps (nodeOf v') p' = None" by simp
+    with `hyps_free pth`
+    have "hyps_free (((v', p'), (v, p))#pth)" by (auto simp add: hyps_free_def)
 
     from Rule  `p' |\<in>| outPorts (nodeOf v')`
     have "f |\<in>| f_consequent r" by simp
@@ -159,26 +191,72 @@ case (wf \<Gamma> v p pth)
     have "f \<in> set (consequent r)" by (simp add: f_consequent_def)
     hence "natEff_Inst (r, f) f (f_antecedent r)" 
       by (rule natEff_Inst.intros)
-    hence "natEff (r, f) (subst (inst v') (freshen v' f))
-           ((\<lambda>ant. ((\<lambda>p. subst (inst v') (freshen v' p)) |`| a_hyps ant, subst (inst v') (freshen v' (a_conc ant)))) |`| f_antecedent r)" (is "natEff _ _ ?ant")
-      by (rule natEff.intros)
+    hence "eff (NatRule (r, f)) (?\<Gamma> \<turnstile> subst (inst v') (freshen v' f))
+           ((\<lambda>ant. ((\<lambda>p. subst (inst v') (freshen v' p)) |`| a_hyps ant |\<union>| ?\<Gamma> \<turnstile> subst (inst v') (freshen v' (a_conc ant)))) |`| f_antecedent r)" 
+           (is "eff _ _ ?ants")
+    proof (rule eff.intros)
+      fix ant f
+      assume "ant |\<in>| f_antecedent r"
+      from  `v' |\<in>| vertices` `ant |\<in>| f_antecedent r`
+      have "valid_in_port (v',ant)" by (simp add: Rule)
+
+      assume "f |\<in>| ?\<Gamma>"
+      thus "freshenV v' ` a_fresh ant \<inter> fv f = {}" 
+      proof(induct rule: hyps_alongE)
+        case (Hyp v'' p'' h'')
+        from `terminal_vertex t` `path v' t (((v', p'), (v, p))#pth)` `hyps_free (((v', p'), (v, p))#pth)` Hyp(1)
+        have "v'' \<notin> scope (v', ant)"
+                 by (rule hyps_free_path_not_in_scope)
+        with `valid_in_port (v',ant)`
+        have "freshenV v' ` local_vars (nodeOf v') ant \<inter> ran_fv (inst v'') = {}"
+         by (rule out_of_scope)
+        moreover
+        have "fv f \<subseteq> ran_fv (inst v'') " using `f = _`
+          by (simp add: labelAtOut_def fv_subst)
+        ultimately
+        show ?thesis by auto
+      next
+        case (Assumption v pf)
+        hence "f = subst (inst v) (freshen v pf)" by (simp add: labelAtOut_def)
+        moreover
+        from Assumption have "Assumption pf \<in> sset nodes" using valid_nodes by (auto simp add: fmember.rep_eq)
+        hence "pf \<in> set assumptions" unfolding nodes_def by (auto simp add: stream.set_map)
+        hence "closed pf" using assumptions_closed by auto
+        ultimately
+        have "fv f = {}" using closed_pre_fv subst_no_vars annotate_preserves_fv by blast
+        thus ?thesis by simp
+      qed      
+    next
+      fix ant
+      assume "ant |\<in>| f_antecedent r"
+      from  `v' |\<in>| vertices` `ant |\<in>| f_antecedent r`
+      have "valid_in_port (v',ant)" by (simp add: Rule)
+      moreover
+      from `v' |\<in>| vertices`
+      have "v' \<notin> scope (v', ant)" by (rule scopes_not_refl)
+      ultimately
+      have "freshenV v' ` local_vars (nodeOf v') ant \<inter> ran_fv (inst v') = {}"
+        by (rule out_of_scope)
+      thus "freshenV v' ` a_fresh ant \<inter> ran_fv (inst v') = {}" by simp
+    qed
     also
     have "subst (inst v') (freshen v' f) = labelAtOut v' p'" using Rule by (simp add: labelAtOut_def)
     also
     note `labelAtOut v' p' = labelAtIn v p`
     also
-    have "?ant = ((\<lambda>x. (extra_assms v' x, labelAtIn  v' x)) |`| f_antecedent r)"
-      by (rule fimage_cong[OF refl]) (auto simp add: labelAtIn_def labelAtOut_def Rule hyps_for_fimage)
-    also
-    from eff.intros(2)[OF calculation, where \<Gamma> = \<Gamma>]
-    have "eff (NatRule (r, f)) (\<Gamma>, labelAtIn v p) ((\<lambda>x. (extra_assms v' x |\<union>| \<Gamma> \<turnstile> labelAtIn  v' x)) |`| f_antecedent r)"
-      by (auto simp del: labelsIn.simps simp add: comp_def)
+    have "?ants = ((\<lambda>x. (extra_assms (v',x) |\<union>| hyps_along (((v',p'),(v,p))#pth) \<turnstile> labelAtIn  v' x)) |`| f_antecedent r)"
+      by (rule fimage_cong[OF refl])
+        (auto simp add: labelAtIn_def labelAtOut_def Rule hyps_for_fimage fmember.rep_eq ffUnion.rep_eq)
+    finally
+    have "eff (NatRule (r, f))
+        (?\<Gamma>, labelAtIn v p)
+        ((\<lambda>x. extra_assms (v',x) |\<union>| ?\<Gamma> \<turnstile> labelAtIn v' x) |`| f_antecedent r)".
     }
     moreover
 
     { fix x
       assume "x |\<in>| cont ?t"
-      then obtain a where "x = tree (labelAtOut  v' |`| hyps_for (Rule r) a |\<union>| \<Gamma>) v' a" and "a |\<in>| f_antecedent r"
+      then obtain a where "x = tree v' a (((v',p'),(v,p))#pth)" and "a |\<in>| f_antecedent r"
         by (auto simp add: Rule)
       note this(1)
       moreover
@@ -187,45 +265,35 @@ case (wf \<Gamma> v p pth)
       have "valid_in_port (v',a)" by (simp add: Rule)
       moreover
 
-      from `global_assms TYPE('var) \<subseteq> fset \<Gamma>`
-      have "global_assms TYPE('var) \<subseteq> fset (labelAtOut v' |`| hyps_for (Rule r) a |\<union>| \<Gamma>)" by auto
-      moreover
-
       note `terminal_vertex t`
       moreover
 
-      from `_ \<in> edges` `path v t pth`
-      have "path v' t (((v', p'), (v, p))#pth)"  by (simp add: path_cons_simp)
-      moreover
-
-      from `local_assms v p pth t \<subseteq> _` Rule
-      have "local_assms v' a (((v', p'), (v, p))#pth) t \<subseteq> fset (labelAtOut v' |`| hyps_for (Rule r) a |\<union>| \<Gamma>)"
-        by (auto simp add: local_assms_cons)        
+      note `path v' t (((v', p'), (v, p))#pth)` and `hyps_free (((v', p'), (v, p))#pth)`
       ultimately
 
-      have "\<exists>\<Gamma> v p pth. x = tree \<Gamma> v p \<and> valid_in_port (v,p) \<and>  global_assms TYPE('var) \<subseteq> fset \<Gamma> \<and> terminal_vertex t \<and> path v t pth \<and> local_assms v p pth t \<subseteq> fset \<Gamma>"
+      have "\<exists>v p pth. x = tree v p pth \<and> valid_in_port (v,p) \<and>  terminal_vertex t \<and> path v t pth \<and> hyps_free pth"
         by blast
     }
     ultimately
 
     show ?thesis using Rule
-      by (auto intro!: exI[where x = ?t]  simp add: comp_def)       
+      by (auto intro!: exI[where x = ?t]  simp add: comp_def funion_assoc)
   qed
 qed
 
-lemma global_in_ass: "global_assms TYPE('var) \<subseteq> fset ass_forms"
+lemma global_in_ass: "global_assms TYPE('var) |\<subseteq>| ass_forms"
 proof
   fix x
-  assume "x \<in> global_assms TYPE('var)"
+  assume "x |\<in>| global_assms TYPE('var)"
   then obtain v pf where "v |\<in>| vertices" and "nodeOf v = Assumption pf" and "x = labelAtOut v (Reg pf)"
-    by (auto simp add: global_assms.simps)
+    by (auto simp add: global_assms_simps)
   from this (1,2) valid_nodes
   have "Assumption pf \<in> sset nodes" by (auto simp add: fmember.rep_eq)
   hence "pf \<in> set assumptions" by (auto simp add: nodes_def stream.set_map)
   hence "closed pf" using assumptions_closed by auto
   with `x = labelAtOut v (Reg pf)`
   have "x = subst undefined (freshen undefined pf)" by (auto simp add: closed_eq labelAtOut_def)
-  thus "x \<in> fset ass_forms" using `pf \<in> set assumptions` by (auto simp add: ass_forms_def)
+  thus "x |\<in>| ass_forms" using `pf \<in> set assumptions` by (auto simp add: ass_forms_def)
 qed
 
 primcorec edge_tree :: "'vertex \<Rightarrow> ('preform, 'var) in_port \<Rightarrow> ('vertex, 'preform, 'var) edge' tree" where
@@ -251,10 +319,10 @@ qed
 
 
 lemma finite_tree_edge_tree:
-  "tfinite (tree \<Gamma> v p) \<longleftrightarrow> tfinite (edge_tree v p)"
+  "tfinite (tree v p pth) \<longleftrightarrow> tfinite (edge_tree v p)"
 proof-
-  have "map_tree (\<lambda> _. ())  (tree \<Gamma> v p) = map_tree (\<lambda> _. ()) (edge_tree v p)"
-   by(coinduction arbitrary: \<Gamma> v p)
+  have "map_tree (\<lambda> _. ())  (tree v p pth) = map_tree (\<lambda> _. ()) (edge_tree v p)"
+   by(coinduction arbitrary: v p pth)
      (fastforce simp add: tree.map_sel rel_fset_def rel_set_def split: prod.split out_port.split graph_node.split option.split)
   thus ?thesis by (metis tfinite_map_tree)
 qed
@@ -335,10 +403,10 @@ lemma forbidden_path_prefix_is_hyp_free:
 
 theorem finite_tree:
   assumes "valid_in_port (v,p)"
-  shows "tfinite (tree \<Gamma> v p)"
+  shows "tfinite (tree v p pth)"
 proof(rule ccontr)
   let ?n = "Suc (fcard vertices)"
-  assume "\<not> tfinite (tree \<Gamma> v p)"
+  assume "\<not> tfinite (tree v p pth)"
   hence "\<not> tfinite (edge_tree v p)" unfolding finite_tree_edge_tree.
   then obtain es  :: "('vertex, 'preform, 'var) edge' stream"
     where "ipath (edge_tree v p) es" using Konig by blast
@@ -367,21 +435,22 @@ proof(intro ballI allI conjI impI)
     using `v |\<in>| vertices` `nodeOf _ = _ `  by simp
 
 
-  let ?t = "tree ass_forms v (plain_ant pf)"
+  let ?t = "tree v (plain_ant pf) []"
 
-  have "fst (root ?t) = (ass_forms, c)"
-    using `pf \<in> set conclusions` `c = _`
+  have "fst (root ?t) = (global_assms TYPE('var), c)"
+    using `pf \<in> set conclusions` `c = _` `nodeOf _ = _`
     by (simp add: labelAtIn_def closed_eq conclusions_closed)
+  moreover
+
+  have "global_assms TYPE('var) |\<subseteq>| ass_forms" by (rule global_in_ass)
   moreover
 
   have "wf ?t"
   proof(rule wf_tree)
     show "valid_in_port (v, (plain_ant pf))" by fact
-    show "global_assms TYPE('var) \<subseteq> fset ass_forms" by (rule global_in_ass)
     show "terminal_vertex v" using `nodeOf v = Conclusion pf` by auto
     show "path v v []"..
-    show "local_assms v (plain_ant pf) [] v \<subseteq> fset ass_forms"
-      using `nodeOf v = Conclusion pf` by (auto simp add: local_assms_Nil)
+    show "hyps_free []" by (simp add: hyps_free_def)
   qed
   moreover
 
@@ -389,7 +458,7 @@ proof(intro ballI allI conjI impI)
   have "tfinite ?t" by (rule finite_tree)
   ultimately
   
-  show "\<exists>t. fst (root t) = (ass_forms, c) \<and> wf t \<and> tfinite t" by blast
+  show "\<exists>\<Gamma> t. fst (root t) = (\<Gamma> \<turnstile> c) \<and> \<Gamma> |\<subseteq>| ass_forms \<and> wf t \<and> tfinite t" by blast
 qed
 
 end

@@ -15,7 +15,7 @@ abbreviation entails :: "'form fset \<Rightarrow> 'form \<Rightarrow> 'form enta
 fun add_ctxt :: "'form fset \<Rightarrow> 'form entailment \<Rightarrow> 'form entailment" where
   "add_ctxt \<Delta> (\<Gamma> \<turnstile> c) = (\<Gamma> |\<union>| \<Delta> \<turnstile> c)"
 
-locale ND_Rules = 
+locale ND_Rules_Simple = 
   fixes natEff :: "'rule \<Rightarrow> 'form \<Rightarrow> 'form entailment fset \<Rightarrow> bool"
   and rules :: "'rule stream"
 begin
@@ -29,18 +29,34 @@ begin
 end
 
 locale ND_Rules_Inst =
-  Abstract_Formulas _ pre_fv _ subst
-  for pre_fv :: "'preform \<Rightarrow> 'var set" and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" +
-  fixes natEff_Inst :: "'rule \<Rightarrow> 'preform \<Rightarrow> ('preform, 'var) antecedent fset \<Rightarrow> bool"
+  Abstract_Formulas freshen pre_fv fv subst ran_fv closed
+  for freshen :: "'annot \<Rightarrow> 'preform \<Rightarrow> 'form" 
+  and pre_fv :: "'preform \<Rightarrow> 'var set" 
+  and fv :: "'form \<Rightarrow> ('var \<times> 'annot) set" 
+  and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" 
+  and ran_fv :: "'subst \<Rightarrow> ('var \<times> 'annot) set" 
+  and closed :: "'preform \<Rightarrow> bool" +
+
+  fixes nat_rule :: "'rule \<Rightarrow> 'preform \<Rightarrow> ('preform, 'var) antecedent fset \<Rightarrow> bool"
   and rules :: "'rule stream"
 begin
 
-  inductive natEff where
-    "natEff_Inst r c ants \<Longrightarrow> 
+  inductive eff :: "'rule NatRule \<Rightarrow> 'form entailment \<Rightarrow> 'form entailment fset \<Rightarrow> bool" where
+    "con |\<in>| \<Gamma>
+    \<Longrightarrow> eff Axiom (\<Gamma> \<turnstile> con) {||}"
+   |"nat_rule r c ants
+    \<Longrightarrow> (\<And> ant f. ant |\<in>| ants \<Longrightarrow> f |\<in>| \<Gamma> \<Longrightarrow> freshenV a ` (a_fresh ant) \<inter> fv f = {})
+    \<Longrightarrow> (\<And> ant. ant |\<in>| ants \<Longrightarrow> freshenV a ` (a_fresh ant) \<inter> ran_fv s = {})
+    \<Longrightarrow> eff (NatRule rule)
+        (\<Gamma> \<turnstile> subst s (freshen a c))
+        ((\<lambda>ant. ((\<lambda>p. subst s (annotate a p)) |`| a_hyps ant |\<union>| \<Gamma> \<turnstile> subst s (annotate a (a_conc ant)))) |`| ants) "
+    
+(*
      natEff r (subst s (freshen a c))
-              ((\<lambda>ant. ((\<lambda>p. subst s (freshen a p)) |`| a_hyps ant \<turnstile> subst s (freshen a (a_conc ant)))) |`| ants)"
-
-  sublocale ND_Rules where natEff = natEff and rules = rules.
+              ((\<lambda>ant. ((\<lambda>p. subst s (annotate a p)) |`| a_hyps ant \<turnstile> subst s (annotate a (a_conc ant)))) |`| ants)"
+*)
+  sublocale RuleSystem_Defs where
+    eff = eff and rules = "Axiom ## smap NatRule rules".
 end
 
 context Abstract_Task 
@@ -54,7 +70,7 @@ begin
   sublocale ND_Rules_Inst _ _ _ _ _ _ natEff_Inst n_rules ..
 
   definition solved where
-    "solved \<longleftrightarrow> (\<forall> c. c |\<in>| conc_forms \<longrightarrow> (\<exists> t. fst (root t) = (ass_forms, c) \<and> wf t \<and> tfinite t))"
+    "solved \<longleftrightarrow> (\<forall> c. c |\<in>| conc_forms \<longrightarrow> (\<exists> \<Gamma> t. fst (root t) = (\<Gamma> \<turnstile> c) \<and> \<Gamma> |\<subseteq>| ass_forms \<and> wf t \<and> tfinite t))"
 
 end
 
