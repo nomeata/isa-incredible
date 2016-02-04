@@ -321,15 +321,15 @@ locale Labeled_Signature =
 locale Instantiation =
   Port_Graph nodes _ _ vertices _ edges +
   Labeled_Signature nodes  _ _ _ labelsIn labelsOut +
-  Abstract_Formulas annotate pre_fv _ subst
+  Abstract_Formulas freshen pre_fv _ subst
   for nodes :: "'node stream" and edges :: "('vertex, 'outPort, 'inPort) edge set" and vertices :: "'vertex fset" and labelsIn :: "'node \<Rightarrow> 'inPort \<Rightarrow> 'preform" and labelsOut :: "'node \<Rightarrow> 'outPort \<Rightarrow> 'preform" 
-  and pre_fv :: "'preform \<Rightarrow> 'var set" and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" and annotate :: "'vertex \<Rightarrow> 'preform \<Rightarrow> 'form" +
+  and pre_fv :: "'preform \<Rightarrow> 'var set" and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" and freshen :: "'vertex \<Rightarrow> 'preform \<Rightarrow> 'form" +
   fixes inst :: "'vertex \<Rightarrow> 'subst"
 begin
   definition labelAtIn :: "'vertex \<Rightarrow> 'inPort \<Rightarrow> 'form"  where
-    "labelAtIn v p = subst (inst v) (annotate v (labelsIn (nodeOf v) p))"
+    "labelAtIn v p = subst (inst v) (freshen v (labelsIn (nodeOf v) p))"
   definition labelAtOut :: "'vertex \<Rightarrow> 'outPort \<Rightarrow> 'form"  where
-    "labelAtOut v p = subst (inst v) (annotate v (labelsOut (nodeOf v) p))"
+    "labelAtOut v p = subst (inst v) (freshen v (labelsOut (nodeOf v) p))"
 end
 
 locale Solution =
@@ -341,14 +341,14 @@ locale Proof_Graph =  Well_Shaped_Graph + Solution
 
 locale Port_Graph_Signature_Scoped_Vars =
   Port_Graph_Signature nodes inPorts outPorts +
-  Abstract_Formulas annotate pre_fv _ subst
+  Abstract_Formulas freshen pre_fv _ subst
   for nodes :: "'node stream" and inPorts :: "'node \<Rightarrow> 'inPort fset"  and outPorts :: "'node \<Rightarrow> 'outPort fset"
-  and pre_fv :: "'preform \<Rightarrow> 'var set" and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" and annotate :: "'vertex \<Rightarrow> 'preform \<Rightarrow> 'form" +
+  and pre_fv :: "'preform \<Rightarrow> 'var set" and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" and freshen :: "'vertex \<Rightarrow> 'preform \<Rightarrow> 'form" +
   fixes local_vars :: "'node \<Rightarrow> 'inPort \<Rightarrow> 'var set"
 
 locale Well_Scoped_Solution =
-   Solution inPorts outPorts nodeOf hyps fv ran_fv closed nodes vertices labelsIn labelsOut pre_fv subst annotate inst edges +
-   Port_Graph_Signature_Scoped_Vars fv ran_fv closed nodes  inPorts outPorts pre_fv subst annotate local_vars
+   Solution inPorts outPorts nodeOf hyps fv ran_fv closed nodes vertices labelsIn labelsOut pre_fv subst freshen inst edges +
+   Port_Graph_Signature_Scoped_Vars fv ran_fv closed nodes  inPorts outPorts pre_fv subst freshen local_vars
    for inPorts :: "'node \<Rightarrow> 'inPort fset" 
     and outPorts :: "'node \<Rightarrow> 'outPort fset" 
     and nodeOf :: "'vertex \<Rightarrow> 'node" 
@@ -362,14 +362,14 @@ locale Well_Scoped_Solution =
     and labelsOut :: "'node \<Rightarrow> 'outPort \<Rightarrow> 'preform" 
     and pre_fv :: "'preform \<Rightarrow> 'var set" 
     and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" 
-    and annotate :: "'vertex \<Rightarrow> 'preform \<Rightarrow> 'form" 
+    and freshen :: "'vertex \<Rightarrow> 'preform \<Rightarrow> 'form" 
     and inst :: "'vertex \<Rightarrow> 'subst" 
     and edges :: "(('vertex \<times> 'outPort) \<times> 'vertex \<times> 'inPort) set" 
     and local_vars :: "'node \<Rightarrow> 'inPort \<Rightarrow> 'var set"
 
 locale Scoped_Proof_Graph =
   Well_Shaped_Graph  nodes inPorts outPorts vertices nodeOf edges hyps  +
-  Well_Scoped_Solution inPorts outPorts nodeOf hyps fv ran_fv closed nodes vertices labelsIn labelsOut pre_fv subst annotate inst edges local_vars
+  Well_Scoped_Solution inPorts outPorts nodeOf hyps fv ran_fv closed nodes vertices labelsIn labelsOut pre_fv subst freshen inst edges local_vars
    for inPorts :: "'node \<Rightarrow> 'inPort fset" 
     and outPorts :: "'node \<Rightarrow> 'outPort fset" 
     and nodeOf :: "'vertex \<Rightarrow> 'node" 
@@ -383,7 +383,7 @@ locale Scoped_Proof_Graph =
     and labelsOut :: "'node \<Rightarrow> 'outPort \<Rightarrow> 'preform" 
     and pre_fv :: "'preform \<Rightarrow> 'var set" 
     and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" 
-    and annotate :: "'vertex \<Rightarrow> 'preform \<Rightarrow> 'form" 
+    and freshen :: "'vertex \<Rightarrow> 'preform \<Rightarrow> 'form" 
     and inst :: "'vertex \<Rightarrow> 'subst" 
     and edges :: "(('vertex \<times> 'outPort) \<times> 'vertex \<times> 'inPort) set" 
     and local_vars :: "'node \<Rightarrow> 'inPort \<Rightarrow> 'var set"
@@ -447,9 +447,9 @@ begin
 end
 
 locale Tasked_Proof_Graph =
-  Tasked_Signature ran_fv closed annotate pre_fv fv subst antecedent consequent rules assumptions conclusions  +
-  Proof_Graph nodes inPorts outPorts vertices nodeOf edges hyps fv ran_fv closed labelsIn labelsOut pre_fv subst annotate inst
-  for annotate :: "'vertex \<Rightarrow> 'preform \<Rightarrow> 'form" 
+  Tasked_Signature ran_fv closed freshen pre_fv fv subst antecedent consequent rules assumptions conclusions  +
+  Proof_Graph nodes inPorts outPorts vertices nodeOf edges hyps fv ran_fv closed labelsIn labelsOut pre_fv subst freshen inst
+  for freshen :: "'vertex \<Rightarrow> 'preform \<Rightarrow> 'form" 
     and fv :: "'form \<Rightarrow> ('var \<times> 'vertex) set" 
     and ran_fv :: "'subst \<Rightarrow> ('var \<times> 'vertex) set" 
     and closed :: "'preform \<Rightarrow> bool"

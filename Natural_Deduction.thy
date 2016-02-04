@@ -37,8 +37,8 @@ begin
 
   inductive natEff where
     "natEff_Inst r c ants \<Longrightarrow> 
-     natEff r (subst s (annotate a c))
-              ((\<lambda>ant. ((\<lambda>p. subst s (annotate a p)) |`| a_hyps ant \<turnstile> subst s (annotate a (a_conc ant)))) |`| ants)"
+     natEff r (subst s (freshen a c))
+              ((\<lambda>ant. ((\<lambda>p. subst s (freshen a p)) |`| a_hyps ant \<turnstile> subst s (freshen a (a_conc ant)))) |`| ants)"
 
   sublocale ND_Rules where natEff = natEff and rules = rules.
 end

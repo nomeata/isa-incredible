@@ -159,11 +159,11 @@ case (wf \<Gamma> v p pth)
     have "f \<in> set (consequent r)" by (simp add: f_consequent_def)
     hence "natEff_Inst (r, f) f (f_antecedent r)" 
       by (rule natEff_Inst.intros)
-    hence "natEff (r, f) (subst (inst v') (annotate v' f))
-           ((\<lambda>ant. ((\<lambda>p. subst (inst v') (annotate v' p)) |`| a_hyps ant, subst (inst v') (annotate v' (a_conc ant)))) |`| f_antecedent r)" (is "natEff _ _ ?ant")
+    hence "natEff (r, f) (subst (inst v') (freshen v' f))
+           ((\<lambda>ant. ((\<lambda>p. subst (inst v') (freshen v' p)) |`| a_hyps ant, subst (inst v') (freshen v' (a_conc ant)))) |`| f_antecedent r)" (is "natEff _ _ ?ant")
       by (rule natEff.intros)
     also
-    have "subst (inst v') (annotate v' f) = labelAtOut v' p'" using Rule by (simp add: labelAtOut_def)
+    have "subst (inst v') (freshen v' f) = labelAtOut v' p'" using Rule by (simp add: labelAtOut_def)
     also
     note `labelAtOut v' p' = labelAtIn v p`
     also
@@ -224,7 +224,7 @@ proof
   hence "pf \<in> set assumptions" by (auto simp add: nodes_def stream.set_map)
   hence "closed pf" using assumptions_closed by auto
   with `x = labelAtOut v (Reg pf)`
-  have "x = subst undefined (annotate undefined pf)" by (auto simp add: closed_eq labelAtOut_def)
+  have "x = subst undefined (freshen undefined pf)" by (auto simp add: closed_eq labelAtOut_def)
   thus "x \<in> fset ass_forms" using `pf \<in> set assumptions` by (auto simp add: ass_forms_def)
 qed
 
@@ -357,7 +357,7 @@ unfolding solved_def
 proof(intro ballI allI conjI impI)
   fix c
   assume "c |\<in>| conc_forms"
-  then obtain pf where "pf \<in> set conclusions" and "c = subst undefined (annotate undefined pf)"
+  then obtain pf where "pf \<in> set conclusions" and "c = subst undefined (freshen undefined pf)"
     by (auto simp add: conc_forms_def)
   from this(1) conclusions_present
   obtain v where "v |\<in>| vertices" and "nodeOf v = Conclusion pf"
