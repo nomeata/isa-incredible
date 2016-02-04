@@ -12,22 +12,20 @@ type_synonym 'form entailment = "('form fset \<times> 'form)"
 abbreviation entails :: "'form fset \<Rightarrow> 'form \<Rightarrow> 'form entailment" (infix "\<turnstile>" 50)
   where "entails a c \<equiv> (a, c)"
 
+fun add_ctxt :: "'form fset \<Rightarrow> 'form entailment \<Rightarrow> 'form entailment" where
+  "add_ctxt \<Delta> (\<Gamma> \<turnstile> c) = (\<Gamma> |\<union>| \<Delta> \<turnstile> c)"
+
 locale ND_Rules = 
   fixes natEff :: "'rule \<Rightarrow> 'form \<Rightarrow> 'form entailment fset \<Rightarrow> bool"
   and rules :: "'rule stream"
 begin
 
-  fun eff :: "'rule NatRule \<Rightarrow> 'form entailment \<Rightarrow> 'form entailment fset \<Rightarrow> bool" where
-     "eff Axiom (ctxt \<turnstile> con) ant \<longleftrightarrow> ant = {||} \<and> con |\<in>| ctxt"
-   | "eff (NatRule rule) (ctxt \<turnstile> con) ant \<longleftrightarrow> (\<exists> nat_ant. natEff rule con nat_ant \<and> ant = fimage (\<lambda> n . (fst n |\<union>| ctxt, snd n) ) nat_ant)"
+  inductive eff :: "'rule NatRule \<Rightarrow> 'form entailment \<Rightarrow> 'form entailment fset \<Rightarrow> bool" where
+    "con |\<in>| \<Gamma> \<Longrightarrow> eff Axiom (\<Gamma> \<turnstile> con) {||}"
+   |"natEff rule con ant \<Longrightarrow> eff (NatRule rule) (\<Gamma> \<turnstile> con) (add_ctxt \<Gamma> |`| ant)"
   
   sublocale RuleSystem_Defs where
     eff = eff and rules = "Axiom ## smap NatRule rules".
-
-  lemma effNatRuleI:
-    "natEff rule con nat_ant \<Longrightarrow> eff (NatRule rule) (ctxt, con) (fimage (\<lambda> n . (fst n |\<union>| ctxt, snd n) ) nat_ant)"
-      by auto
-
 end
 
 locale ND_Rules_Inst =
@@ -39,7 +37,8 @@ begin
 
   inductive natEff where
     "natEff_Inst r c ants \<Longrightarrow> 
-     natEff r (subst s (annotate a c)) ((\<lambda>ant. ((\<lambda>p. subst s (annotate a p)) |`| a_hyps ant \<turnstile> subst s (annotate a (a_concl ant)))) |`| ants)"
+     natEff r (subst s (annotate a c))
+              ((\<lambda>ant. ((\<lambda>p. subst s (annotate a p)) |`| a_hyps ant \<turnstile> subst s (annotate a (a_conc ant)))) |`| ants)"
 
   sublocale ND_Rules where natEff = natEff and rules = rules.
 end
@@ -56,7 +55,7 @@ begin
 
   definition solved where
     "solved \<longleftrightarrow> (\<forall> c. c |\<in>| conc_forms \<longrightarrow> (\<exists> t. fst (root t) = (ass_forms, c) \<and> wf t \<and> tfinite t))"
-    
+
 end
 
 

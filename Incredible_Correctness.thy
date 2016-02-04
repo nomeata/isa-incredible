@@ -119,14 +119,15 @@ case (wf \<Gamma> v p pth)
 
     
     from `hyps (nodeOf v') (Hyp h c) = Some c`
-    have "(Hyp h c) |\<in>| hyps_for (nodeOf v') c" by simp
+    have "Hyp h c |\<in>| hyps_for (nodeOf v') c" by simp
     ultimately
 
     have "labelAtOut v' (Hyp h c) \<in> local_assms v p pth t"..
     with `local_assms v p pth t \<subseteq> fset \<Gamma>`
     have "labelAtOut v' (Hyp h c) \<in> fset \<Gamma>" by (rule subsetD)
     hence "labelAtIn v p |\<in>| \<Gamma>"  by (simp add: s[symmetric] Hyp fmember.rep_eq)
-    thus ?thesis using Hyp by (auto intro: exI[where x = ?t])
+    thus ?thesis using Hyp by (auto intro: exI[where x = ?t] simp add: eff.simps)
+      
   next
     case (Assumption f)
 
@@ -137,7 +138,7 @@ case (wf \<Gamma> v p pth)
     have "labelAtOut v' (Reg f) \<in> fset \<Gamma>" by (rule subsetD)
     hence "labelAtIn v p |\<in>| \<Gamma>" by (simp add: s[symmetric] Assumption fmember.rep_eq)
     thus ?thesis using Assumption
-      by (auto intro: exI[where x = ?t])
+      by (auto intro: exI[where x = ?t] simp add: eff.simps)
   next
     case (Rule r f)
     with `nodeOf v' \<in> sset nodes`
@@ -169,9 +170,9 @@ case (wf \<Gamma> v p pth)
     have "?ant = ((\<lambda>x. (extra_assms v' x, labelAtIn  v' x)) |`| f_antecedent r)"
       by (rule fimage_cong[OF refl]) (auto simp add: labelAtIn_def labelAtOut_def Rule hyps_for_fimage)
     also
-    from effNatRuleI[OF calculation, where ctxt = \<Gamma>]
+    from eff.intros(2)[OF calculation, where \<Gamma> = \<Gamma>]
     have "eff (NatRule (r, f)) (\<Gamma>, labelAtIn v p) ((\<lambda>x. (extra_assms v' x |\<union>| \<Gamma> \<turnstile> labelAtIn  v' x)) |`| f_antecedent r)"
-      by (auto simp del: eff.simps labelsIn.simps simp add: comp_def)
+      by (auto simp del: labelsIn.simps simp add: comp_def)
     }
     moreover
 
@@ -208,7 +209,7 @@ case (wf \<Gamma> v p pth)
     ultimately
 
     show ?thesis using Rule
-      by (auto intro!: exI[where x = ?t]  simp add: comp_def   simp del: eff.simps)       
+      by (auto intro!: exI[where x = ?t]  simp add: comp_def)       
   qed
 qed
 
