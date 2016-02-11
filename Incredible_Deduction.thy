@@ -271,10 +271,16 @@ definition hyps_free where
 lemma hyps_free_acyclic: "path v v pth \<Longrightarrow> hyps_free pth \<Longrightarrow> pth = []"
   by (drule acyclic) (fastforce simp add: hyps_free_def)
 
+lemma path_vertices_shift:
+  assumes "path v v' pth"
+  shows "map fst (map fst pth)@[v'] = v#map fst (map snd pth)"
+using assms by (induction) auto
+
 lemma hyps_free_vertices_distinct:
   assumes "path v v' pth"
   assumes "hyps_free pth"
-  shows "distinct (map fst (map fst pth))"
+  assumes "terminal_vertex v'"
+  shows "distinct (map fst (map fst pth)@[v'])"
 using assms
 proof(induction v v' pth)
   case path_empty
@@ -283,7 +289,7 @@ next
   case (path_cons e v' pth)
   from `hyps_free (e # pth)`
   have "hyps_free pth" by (auto simp add: hyps_free_def)
-  note IH = path_cons.IH[OF this]
+  note IH = path_cons.IH[OF this `terminal_vertex v'`]
   moreover
   have "fst (fst e) \<notin> fst ` fst ` set pth"
   proof
@@ -306,19 +312,33 @@ next
     ultimately
     show False  using hyps_free_acyclic by auto
   qed
+  moreover
+  have "fst (fst e) \<noteq> v'"
+    by (metis Pre_Port_Graph.path_cons `hyps_free (e # pth)` edge_begin_tup hyps_free_acyclic list.discI path_cons.hyps(1) path_cons.hyps(2))
   ultimately
   show ?case by (auto simp add: comp_def)
 qed
 
+lemma hyps_free_vertices_distinct':
+  assumes "path v v' pth"
+  assumes "hyps_free pth"
+  assumes "terminal_vertex v'"
+  shows "distinct (v # map fst (map snd pth))"
+  using hyps_free_vertices_distinct[OF assms]
+  unfolding path_vertices_shift[OF assms(1)]
+  .
+
 lemma hyps_free_limited:
   assumes "path v v' pth"
   assumes "hyps_free pth"
+  assumes "terminal_vertex v'"
   shows "length pth \<le> fcard vertices"
 proof-
   have "length pth = length (map fst (map fst pth))" by simp
   also
   from hyps_free_vertices_distinct[OF assms]
-  have "\<dots> = card (set (map fst (map fst pth)))"
+  have "distinct (map fst (map fst pth))" by simp
+  hence "length (map fst (map fst pth)) = card (set (map fst (map fst pth)))"
     by (rule distinct_card[symmetric])
   also have "\<dots> \<le> card (fset vertices)"
   proof (rule card_mono[OF finite_fset])    

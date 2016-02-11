@@ -21,13 +21,18 @@ locale Abstract_Formulas =
   fixes subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form"
   fixes ran_fv :: "'subst \<Rightarrow> ('var \<times> 'annot) set"
   fixes closed :: "'preform \<Rightarrow> bool"
-  assumes annotate_preserves_fv: "fst ` fv (freshen a pf) = pre_fv pf"
+  assumes fv_freshen': "fv (freshen a pf) = (\<lambda> v. (v,a)) ` pre_fv pf"
   assumes subst_no_vars: "pre_fv pf = {} \<Longrightarrow> fv (subst s f) = {}"
-  assumes fv_subst: "fv (subst s f) \<subseteq> ran_fv s"
+  assumes fv_subst: "fv (subst s f) \<subseteq> fv f \<union> ran_fv s"
   assumes closed_pre_fv: "closed pf \<Longrightarrow> pre_fv pf = {}"
   assumes closed_eq: "closed pf \<Longrightarrow> subst s1 (freshen a1 pf) = subst s2 (freshen a2 pf)"
 begin
   definition freshenV :: "'annot \<Rightarrow> 'var \<Rightarrow>  ('var \<times> 'annot)" where "freshenV a v = (v,a)"
+  lemma fv_freshen: "fv (freshen a pf) = freshenV a ` pre_fv pf"
+    using freshenV_def fv_freshen' by auto
+  lemma freshenV_eq_iff: "freshenV a v = freshenV a' v' \<longleftrightarrow> a = a' \<and> v = v'"
+    by (auto simp add: freshenV_def)
+
 end
 
 datatype ('preform, 'var) antecedent =

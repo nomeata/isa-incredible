@@ -211,10 +211,16 @@ case (wf v p pth)
         have "freshenV v' ` local_vars (nodeOf v') ant \<inter> ran_fv (inst v'') = {}"
          by (rule out_of_scope)
         moreover
-        have "fv f \<subseteq> ran_fv (inst v'') " using `f = _`
+        from hyps_free_vertices_distinct'[OF `path v' t (((v', p'), (v, p))#pth)` `hyps_free (((v', p'), (v, p))#pth)` `terminal_vertex t` ]
+             Hyp.hyps(1)
+        have "v'' \<noteq> v'" by (metis distinct.simps(2) fst_conv image_eqI list.set_map)
+        hence "freshenV v' ` a_fresh ant \<inter> freshenV v'' ` pre_fv (labelsOut (nodeOf v'') h'') = {}"
+          by (auto simp add: freshenV_eq_iff)
+        moreover
+        have "fv f \<subseteq> fv (freshen v'' (labelsOut (nodeOf v'') h'')) \<union> ran_fv (inst v'') " using `f = _`
           by (simp add: labelAtOut_def fv_subst)
         ultimately
-        show ?thesis by auto
+        show ?thesis by (fastforce simp add: fv_freshen)
       next
         case (Assumption v pf)
         hence "f = subst (inst v) (freshen v pf)" by (simp add: labelAtOut_def)
@@ -223,7 +229,7 @@ case (wf v p pth)
         hence "pf \<in> set assumptions" unfolding nodes_def by (auto simp add: stream.set_map)
         hence "closed pf" using assumptions_closed by auto
         ultimately
-        have "fv f = {}" using closed_pre_fv subst_no_vars annotate_preserves_fv by blast
+        have "fv f = {}" using closed_pre_fv subst_no_vars fv_freshen by blast
         thus ?thesis by simp
       qed      
     next
@@ -403,6 +409,7 @@ lemma forbidden_path_prefix_is_hyp_free:
 
 theorem finite_tree:
   assumes "valid_in_port (v,p)"
+  assumes "terminal_vertex v"
   shows "tfinite (tree v p pth)"
 proof(rule ccontr)
   let ?n = "Suc (fcard vertices)"
@@ -415,7 +422,8 @@ proof(rule ccontr)
   from forbidden_path_prefix_is_path[OF this] forbidden_path_prefix_is_hyp_free[OF this]
   obtain v' where "path v' v (rev (stake ?n es))" and "hyps_free (rev (stake ?n es))"
     by blast
-  hence "length (rev (stake ?n es)) \<le> fcard vertices"
+  from this `terminal_vertex v`
+  have "length (rev (stake ?n es)) \<le> fcard vertices"
     by (rule hyps_free_limited)
   thus False by simp
 qed
@@ -434,6 +442,7 @@ proof(intro ballI allI conjI impI)
   have "valid_in_port (v, (plain_ant pf))"
     using `v |\<in>| vertices` `nodeOf _ = _ `  by simp
 
+  have "terminal_vertex v" using `nodeOf v = Conclusion pf` by auto
 
   let ?t = "tree v (plain_ant pf) []"
 
@@ -448,13 +457,13 @@ proof(intro ballI allI conjI impI)
   have "wf ?t"
   proof(rule wf_tree)
     show "valid_in_port (v, (plain_ant pf))" by fact
-    show "terminal_vertex v" using `nodeOf v = Conclusion pf` by auto
+    show "terminal_vertex v" by fact
     show "path v v []"..
     show "hyps_free []" by (simp add: hyps_free_def)
   qed
   moreover
 
-  from `valid_in_port (v, plain_ant pf)`
+  from `valid_in_port (v, plain_ant pf)` `terminal_vertex v`
   have "tfinite ?t" by (rule finite_tree)
   ultimately
   
