@@ -268,70 +268,100 @@ begin
 definition hyps_free where
   "hyps_free pth = (\<forall> v\<^sub>1 p\<^sub>1 v\<^sub>2 p\<^sub>2. ((v\<^sub>1,p\<^sub>1),(v\<^sub>2,p\<^sub>2)) \<in> set pth \<longrightarrow> hyps (nodeOf v\<^sub>1) p\<^sub>1 = None)"
 
+lemma hyps_free_Nil[simp]: "hyps_free []" by (simp add: hyps_free_def)
+
+lemma hyps_free_Cons[simp]: "hyps_free (e#pth) \<longleftrightarrow> hyps_free pth \<and> hyps (nodeOf (fst (fst e))) (snd (fst e)) = None"
+  by (auto simp add: hyps_free_def) (metis prod.collapse)
+
+
 lemma hyps_free_acyclic: "path v v pth \<Longrightarrow> hyps_free pth \<Longrightarrow> pth = []"
   by (drule acyclic) (fastforce simp add: hyps_free_def)
 
 lemma path_vertices_shift:
   assumes "path v v' pth"
   shows "map fst (map fst pth)@[v'] = v#map fst (map snd pth)"
-using assms by (induction) auto
+using assms by induction auto
 
-lemma hyps_free_vertices_distinct:
+inductive terminal_path where
+    terminal_path_empty: "terminal_vertex v \<Longrightarrow> terminal_path v v []" |
+    terminal_path_cons: "((v\<^sub>1,p\<^sub>1),(v\<^sub>2,p\<^sub>2)) \<in> edges \<Longrightarrow> terminal_path v\<^sub>2 v' pth \<Longrightarrow> hyps (nodeOf v\<^sub>1) p\<^sub>1 = None \<Longrightarrow> terminal_path v\<^sub>1 v' (((v\<^sub>1,p\<^sub>1),(v\<^sub>2,p\<^sub>2))#pth)"
+
+lemma terminal_path_is_path:
+  assumes "terminal_path v v' pth"
+  shows "path v v' pth"
+using assms by induction (auto simp add: path_cons_simp)
+
+lemma terminal_path_is_hyps_free:
+  assumes "terminal_path v v' pth"
+  shows "hyps_free pth"
+using assms
+  by induction (auto simp add: hyps_free_def)
+
+lemma terminal_path_end_is_terminal:
+  assumes "terminal_path v v' pth"
+  shows "terminal_vertex v'"
+using assms by induction
+
+lemma terminal_pathI:
   assumes "path v v' pth"
   assumes "hyps_free pth"
   assumes "terminal_vertex v'"
+  shows "terminal_path v v' pth"
+using assms
+by induction (auto intro: terminal_path.intros)
+
+
+lemma hyps_free_vertices_distinct:
+  assumes "terminal_path v v' pth"
   shows "distinct (map fst (map fst pth)@[v'])"
 using assms
 proof(induction v v' pth)
-  case path_empty
+  case terminal_path_empty
   show ?case by simp
 next
-  case (path_cons e v' pth)
-  from `hyps_free (e # pth)`
-  have "hyps_free pth" by (auto simp add: hyps_free_def)
-  note IH = path_cons.IH[OF this `terminal_vertex v'`]
+  case (terminal_path_cons v\<^sub>1 p\<^sub>1 v\<^sub>2 p\<^sub>2 v' pth)
+  note terminal_path_cons.IH
   moreover
-  have "fst (fst e) \<notin> fst ` fst ` set pth"
+  have "v\<^sub>1 \<notin> fst ` fst ` set pth"
   proof
-    assume "fst (fst e) \<in> fst ` fst ` set pth"
-    then obtain pth1 e' pth2 where "pth = pth1@[e']@pth2" and "fst (fst e) = fst (fst e')"
+    assume "v\<^sub>1 \<in> fst ` fst ` set pth"
+    then obtain pth1 e' pth2 where "pth = pth1@[e']@pth2" and "v\<^sub>1 = fst (fst e')"
       apply (atomize_elim)
       apply (induction pth)
-      apply auto
-      apply force
-      apply (metis Cons_eq_appendI image_eqI prod.sel(1))
-      done
-    with `path (edge_end e) v' pth`
-    have "path (edge_end e) (edge_begin e) pth1" by (simp add:  path_split2 edge_begin_tup)
-    with `e \<in> _`
-    have "path (edge_begin e) (edge_begin e) (e # pth1)"..
+      apply simp
+      apply (auto)
+      apply (rule exI[where x = "[]"])
+      apply simp
+      by (metis Cons_eq_appendI image_eqI prod.sel(1))
+    with terminal_path_is_path[OF `terminal_path v\<^sub>2 v' pth`]
+    have "path v\<^sub>2 v\<^sub>1 pth1" by (simp add:  path_split2 edge_begin_tup)
+    with `((v\<^sub>1, p\<^sub>1), (v\<^sub>2, p\<^sub>2)) \<in> _`
+    have "path v\<^sub>1 v\<^sub>1 (((v\<^sub>1, p\<^sub>1), (v\<^sub>2, p\<^sub>2)) # pth1)" by (simp add: path_cons_simp)
     moreover
-    from `hyps_free (e # pth)` `pth = pth1@[e']@pth2`
-    have "hyps_free (e # pth1)"
+    from terminal_path_is_hyps_free[OF `terminal_path v\<^sub>2 v' pth`]
+         `hyps (nodeOf v\<^sub>1) p\<^sub>1 = None`
+         `pth = pth1@[e']@pth2`
+    have "hyps_free(((v\<^sub>1, p\<^sub>1), (v\<^sub>2, p\<^sub>2)) # pth1)"
       by (auto simp add: hyps_free_def)
     ultimately
-    show False  using hyps_free_acyclic by auto
+    show False  using hyps_free_acyclic by blast
   qed
   moreover
-  have "fst (fst e) \<noteq> v'"
-    by (metis Pre_Port_Graph.path_cons `hyps_free (e # pth)` edge_begin_tup hyps_free_acyclic list.discI path_cons.hyps(1) path_cons.hyps(2))
+  have "v\<^sub>1 \<noteq> v'"
+    using hyps_free_acyclic path_cons terminal_path_cons.hyps(1) terminal_path_cons.hyps(2) terminal_path_cons.hyps(3) terminal_path_is_hyps_free terminal_path_is_path by fastforce
   ultimately
   show ?case by (auto simp add: comp_def)
 qed
 
 lemma hyps_free_vertices_distinct':
-  assumes "path v v' pth"
-  assumes "hyps_free pth"
-  assumes "terminal_vertex v'"
+  assumes "terminal_path v v' pth"
   shows "distinct (v # map fst (map snd pth))"
   using hyps_free_vertices_distinct[OF assms]
-  unfolding path_vertices_shift[OF assms(1)]
+  unfolding path_vertices_shift[OF terminal_path_is_path[OF assms]]
   .
 
 lemma hyps_free_limited:
-  assumes "path v v' pth"
-  assumes "hyps_free pth"
-  assumes "terminal_vertex v'"
+  assumes "terminal_path v v' pth"
   shows "length pth \<le> fcard vertices"
 proof-
   have "length pth = length (map fst (map fst pth))" by simp
@@ -351,9 +381,7 @@ proof-
 qed
 
 lemma hyps_free_path_not_in_scope:
-  assumes "terminal_vertex t"
-  assumes "path v t pth"
-  assumes "hyps_free pth"
+  assumes "terminal_path v t pth"
   assumes "(v',p') \<in> snd ` set pth"
   shows   "v' \<notin> scope (v, p)"
 proof
@@ -361,10 +389,10 @@ proof
 
   from `(v',p') \<in> snd \` set pth`
   obtain pth1 pth2 e  where "pth = pth1@[e]@pth2" and "snd e = (v',p')" by (rule snd_set_split)
-  from `path v t pth`[unfolded `pth = _ `] `snd e = _`
+  from terminal_path_is_path[OF assms(1), unfolded `pth = _ `] `snd e = _`
   have "path v v' (pth1@[e])" and "path v' t pth2" unfolding path_split by (auto simp add: edge_end_tup)
   
-  from `v' \<in> scope (v,p)` `terminal_vertex t` `path v' t pth2`
+  from `v' \<in> scope (v,p)` terminal_path_end_is_terminal[OF assms(1)] `path v' t pth2`
   have "(v,p) \<in> snd ` set pth2" by (rule scope_find)
   then obtain pth2a e' pth2b  where "pth2 = pth2a@[e']@pth2b" and "snd e' = (v,p)"  by (rule snd_set_split)
   from `path v' t pth2`[unfolded `pth2 = _ `] `snd e' = _`
@@ -373,7 +401,7 @@ proof
   from `path v v' (pth1@[e])` `path v' v (pth2a@[e'])`
   have "path v v ((pth1@[e])@(pth2a@[e']))" by (rule path_appendI)
   moreover
-  from `hyps_free pth` `pth = _` `pth2 = _`
+  from terminal_path_is_hyps_free[OF assms(1)] `pth = _` `pth2 = _`
   have "hyps_free ((pth1@[e])@(pth2a@[e']))" by (auto simp add: hyps_free_def)
   ultimately
   have "((pth1@[e])@(pth2a@[e'])) = []" by (rule hyps_free_acyclic)
