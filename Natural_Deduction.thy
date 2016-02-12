@@ -10,7 +10,7 @@ datatype 'rule NatRule = Axiom | NatRule 'rule
 type_synonym 'form entailment = "('form fset \<times> 'form)"
 
 abbreviation entails :: "'form fset \<Rightarrow> 'form \<Rightarrow> 'form entailment" (infix "\<turnstile>" 50)
-  where "entails a c \<equiv> (a, c)"
+  where "a \<turnstile> c \<equiv> (a, c)"
 
 fun add_ctxt :: "'form fset \<Rightarrow> 'form entailment \<Rightarrow> 'form entailment" where
   "add_ctxt \<Delta> (\<Gamma> \<turnstile> c) = (\<Gamma> |\<union>| \<Delta> \<turnstile> c)"
@@ -21,8 +21,10 @@ locale ND_Rules_Simple =
 begin
 
   inductive eff :: "'rule NatRule \<Rightarrow> 'form entailment \<Rightarrow> 'form entailment fset \<Rightarrow> bool" where
+    eff_Axiom:
     "con |\<in>| \<Gamma> \<Longrightarrow> eff Axiom (\<Gamma> \<turnstile> con) {||}"
-   |"natEff rule con ant \<Longrightarrow> eff (NatRule rule) (\<Gamma> \<turnstile> con) (add_ctxt \<Gamma> |`| ant)"
+   |eff_Rule:
+    "natEff rule con ant \<Longrightarrow> eff (NatRule rule) (\<Gamma> \<turnstile> con) (add_ctxt \<Gamma> |`| ant)"
   
   sublocale RuleSystem_Defs where
     eff = eff and rules = "Axiom ## smap NatRule rules".
@@ -49,7 +51,7 @@ begin
     \<Longrightarrow> (\<And> ant. ant |\<in>| ants \<Longrightarrow> freshenV a ` (a_fresh ant) \<inter> ran_fv s = {})
     \<Longrightarrow> eff (NatRule rule)
         (\<Gamma> \<turnstile> subst s (freshen a c))
-        ((\<lambda>ant. ((\<lambda>p. subst s (annotate a p)) |`| a_hyps ant |\<union>| \<Gamma> \<turnstile> subst s (annotate a (a_conc ant)))) |`| ants) "
+        ((\<lambda>ant. ((\<lambda>p. subst s (freshen a p)) |`| a_hyps ant |\<union>| \<Gamma> \<turnstile> subst s (freshen a (a_conc ant)))) |`| ants) "
     
 (*
      natEff r (subst s (freshen a c))
@@ -74,5 +76,120 @@ begin
 
 end
 
+section {* Elaborated tree (annotation and substitution) *}
+
+datatype ('rule, 'annot, 'subst) ElaboratedNatRule = EAxiom | ENatRule 'rule 'annot 'subst
+
+fun deElaborate where
+  "deElaborate EAxiom = Axiom"
+ |"deElaborate (ENatRule r a s) = NatRule r"
+
+context ND_Rules_Inst
+begin
+
+  inductive eeff :: "('rule,'annot,'subst) ElaboratedNatRule \<Rightarrow> 'form entailment \<Rightarrow> 'form entailment fset \<Rightarrow> bool" where
+   eeff_EAxiom:
+   "con |\<in>| \<Gamma>
+    \<Longrightarrow> eeff EAxiom (\<Gamma> \<turnstile> con) {||}"
+   | eeff_ERule:
+   "nat_rule r c ants
+    \<Longrightarrow> (\<And> ant f. ant |\<in>| ants \<Longrightarrow> f |\<in>| \<Gamma> \<Longrightarrow> freshenV a ` (a_fresh ant) \<inter> fv f = {})
+    \<Longrightarrow> (\<And> ant. ant |\<in>| ants \<Longrightarrow> freshenV a ` (a_fresh ant) \<inter> ran_fv s = {})
+    \<Longrightarrow> eeff (ENatRule rule a s)
+        (\<Gamma> \<turnstile> subst s (freshen a c))
+        ((\<lambda>ant. ((\<lambda>p. subst s (freshen a p)) |`| a_hyps ant |\<union>| \<Gamma> \<turnstile> subst s (freshen a (a_conc ant)))) |`| ants) "
+
+  coinductive ewf where
+    ewf: "\<lbrakk>deElaborate (snd (root t)) \<in> R; eeff (snd (root t)) (fst (root t)) (fimage (fst o root) (cont t));
+      \<And>t'. t' |\<in>| cont t \<Longrightarrow> ewf t'\<rbrakk> \<Longrightarrow> ewf t"
+
+  definition elaborate_step where
+    "elaborate_step r con ants = (SOME er. eeff er con ants \<and> deElaborate er = r)"
+
+  lemma elaborate_tree_eeff:
+    assumes "eff r con ants"
+    shows "eeff (elaborate_step r con ants) con ants \<and> deElaborate (elaborate_step r con ants) = r"
+  using assms
+  proof(cases rule: eff.cases[case_names Axiom Rule])
+    case (Axiom h \<Gamma>)
+    hence "eeff EAxiom con ants" by (auto intro!: eeff.intros)
+    moreover
+    have "deElaborate EAxiom = Axiom" by simp
+    ultimately
+    show ?thesis
+      unfolding elaborate_step_def Axiom(1)
+      by (intro someI conjI)
+  next
+    case (Rule _ _ _ _ a s rule)
+    hence "eeff (ENatRule rule a s) con ants"
+      by (fastforce intro!: eeff.intros)
+    moreover
+    have "deElaborate (ENatRule rule a s) = NatRule rule" by simp
+    ultimately
+    show ?thesis
+      unfolding elaborate_step_def Rule(1)
+      by (intro someI conjI)
+  qed
+
+  primcorec elaborate_tree where
+    "root (elaborate_tree t) = (fst (root t), elaborate_step (snd (root t)) (fst (root t))  (fimage (fst o root) (cont t)))"
+   |"cont (elaborate_tree t) = fimage elaborate_tree (cont t)"
+
+  lemma fst_root_elaborate_tree[simp]:
+    "fst \<circ> root \<circ> elaborate_tree = fst \<circ> root"
+    by auto
+
+  lemma elaborate_tree_deElaborate:
+    assumes "wf t"
+    shows "map_tree (apsnd deElaborate) (elaborate_tree t) = t"
+  using assms
+  proof(coinduction arbitrary: t)
+  case (Eq_tree t)
+    let ?er = "elaborate_step (snd (root t)) (fst (root t)) (fimage (fst o root) (cont t))"
+
+    from Eq_tree
+    have "eff (snd (root t)) (fst (root t)) (fimage (fst o root) (cont t))"
+      using RuleSystem_Defs.wf.simps by blast
+    from elaborate_tree_eeff[OF this]
+    have "eeff ?er (fst (root t))  (fimage (fst o root) (cont t))" and "deElaborate ?er = snd (root t)" by auto
+    from this(2)
+    have "root (map_tree (apsnd deElaborate) (elaborate_tree t)) = root t"
+      by (simp add: tree.map_sel)
+    moreover
+    from Eq_tree
+    have "(\<forall>x. x |\<in>| cont t \<longrightarrow> wf x)" 
+      using RuleSystem_Defs.wf.simps by blast
+    ultimately
+    show ?case
+      by (auto simp add: tree.map_sel fset.rel_map rel_fset_def rel_set_def fmember.rep_eq)
+  qed
+
+  lemma elaborate_tree_ewf:
+    assumes "wf t"
+    shows "ewf (elaborate_tree t)"
+  using assms
+  proof(coinduction arbitrary: t)
+  case (ewf t)
+    let ?er = "elaborate_step (snd (root t)) (fst (root t)) (fimage (fst o root) (cont t))"
+
+    from ewf
+    have "snd (root t) \<in> sset (Axiom ## smap NatRule rules)"
+      using wf.cases by blast
+    moreover
+    from ewf
+    have "eff (snd (root t)) (fst (root t)) (fimage (fst o root) (cont t))"
+      using wf.simps by blast
+    from elaborate_tree_eeff[OF this]
+    have "eeff ?er (fst (root t))  (fimage (fst o root) (cont t))" and "deElaborate ?er = snd (root t)" by auto
+    moreover
+    from ewf
+    have "(\<forall>x. x |\<in>| cont t \<longrightarrow> wf x)" 
+      using RuleSystem_Defs.wf.simps by blast
+    ultimately
+    show ?case
+      by (auto simp del: stream.set)
+  qed
+    
+end
 
 end
