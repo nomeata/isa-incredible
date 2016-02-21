@@ -568,6 +568,16 @@ begin
     case (goal1 n p1 p2)
     thus ?case by(induction n p1 rule: hyps.induct) (auto  split: if_splits)
   qed
+
+  lemma hyps_for_conclusion[simp]: "hyps_for (Conclusion n) p = {||}"
+    using hyps_for_subset by auto
+  lemma hyps_for_Helper[simp]: "hyps_for Helper p = {||}"
+    using hyps_for_subset by auto
+  lemma hyps_for_Rule[simp]: "ip |\<in>| f_antecedent r \<Longrightarrow> hyps_for (Rule r) ip = (\<lambda> h. Hyp h ip) |`| a_hyps ip"
+    apply auto
+    apply (case_tac x)
+    apply (auto split: if_splits)
+    done
 end
 
 locale Tasked_Proof_Graph =
@@ -594,9 +604,5 @@ locale Tasked_Proof_Graph =
     and edges :: "('vertex, 'preform, 'var) edge' set" 
     and inst :: "'vertex \<Rightarrow> 'subst"  +
   assumes conclusions_present: "set (map Conclusion conclusions) \<subseteq> nodeOf ` fset vertices"
-begin
-  lemma hyps_for_conclusion[simp]: "hyps_for (Conclusion n) p = {||}"
-    using hyps_for_subset by auto
-end
 
 end

@@ -55,12 +55,6 @@ begin
     \<Longrightarrow> eff (NatRule rule)
         (\<Gamma> \<turnstile> subst s (freshen a c))
         ((\<lambda>ant. ((\<lambda>p. subst s (freshen a p)) |`| a_hyps ant |\<union>| \<Gamma> \<turnstile> subst s (freshen a (a_conc ant)))) |`| ants) "
-   |"nat_rule r c ants
-    \<Longrightarrow> (\<And> ant f. ant |\<in>| ants \<Longrightarrow> f |\<in>| \<Gamma> \<Longrightarrow> freshenV a ` (a_fresh ant) \<inter> fv f = {})
-    \<Longrightarrow> (\<And> ant. ant |\<in>| ants \<Longrightarrow> freshenV a ` (a_fresh ant) \<inter> ran_fv s = {})
-    \<Longrightarrow> eff (NatRule rule)
-        (\<Gamma> \<turnstile> subst s (freshen a c))
-        ((\<lambda>ant. ((\<lambda>p. subst s (freshen a p)) |`| a_hyps ant |\<union>| \<Gamma> \<turnstile> subst s (freshen a (a_conc ant)))) |`| ants)"
    |"eff Cut (\<Gamma> \<turnstile> c') {| (\<Gamma> \<turnstile> c')|}"
 
  inductive_simps eff_Cut_simps[simp]: "eff Cut (\<Gamma> \<turnstile> c) S"
