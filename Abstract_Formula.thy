@@ -15,11 +15,13 @@ locale Abstract_Formulas =
   fixes subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form"
   fixes ran_fv :: "'subst \<Rightarrow> 'var annotated set"
   fixes closed :: "'preform \<Rightarrow> bool"
+  fixes anyP :: "'preform"
   assumes fv_freshen': "fv (freshen a pf) = (\<lambda> v. (v,a)) ` pre_fv pf"
   assumes subst_no_vars: "pre_fv pf = {} \<Longrightarrow> fv (subst s f) = {}"
   assumes fv_subst: "fv (subst s f) \<subseteq> fv f \<union> ran_fv s"
   assumes closed_pre_fv: "closed pf \<Longrightarrow> pre_fv pf = {}"
   assumes closed_eq: "closed pf \<Longrightarrow> subst s1 (freshen a1 pf) = subst s2 (freshen a2 pf)"
+  assumes anyP_is_any: "\<exists> s. subst s (freshen a anyP) = f"
 begin
   definition freshenV :: "nat \<Rightarrow> 'var \<Rightarrow>  'var annotated" where "freshenV a v = (v,a)"
   lemma fv_freshen: "fv (freshen a pf) = freshenV a ` pre_fv pf"
@@ -36,11 +38,14 @@ abbreviation plain_ant :: "'preform \<Rightarrow> ('preform, 'var) antecedent"
   where "plain_ant f \<equiv> Antecedent {||} f {}"
 
 locale Abstract_Rules =
-  Abstract_Formulas freshen pre_fv fv subst
+  Abstract_Formulas freshen pre_fv fv subst ran_fv closed anyP
   for freshen :: "nat \<Rightarrow> 'preform \<Rightarrow> 'form"
   and pre_fv :: "'preform \<Rightarrow> 'var set"
   and fv :: "'form \<Rightarrow> 'var annotated set"
-  and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" +
+  and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" 
+  and ran_fv :: "'subst \<Rightarrow> ('var \<times> nat) set" 
+  and closed :: "'preform \<Rightarrow> bool" 
+  and anyP :: "'preform" +
   fixes antecedent :: "'rule \<Rightarrow> ('preform, 'var) antecedent list"
   fixes consequent :: "'rule \<Rightarrow> 'preform list"
   and rules :: "'rule stream"
@@ -51,13 +56,14 @@ begin
 end
 
 locale Abstract_Task =
-  Abstract_Rules ran_fv closed freshen pre_fv fv subst antecedent consequent rules
-  for  ran_fv :: "'subst \<Rightarrow> 'var annotated set" 
-    and closed :: "'preform \<Rightarrow> bool" 
-    and freshen :: "nat \<Rightarrow> 'preform \<Rightarrow> 'form" 
+  Abstract_Rules freshen pre_fv fv subst ran_fv closed anyP  antecedent consequent rules
+  for freshen :: "nat \<Rightarrow> 'preform \<Rightarrow> 'form" 
     and pre_fv :: "'preform \<Rightarrow> 'var set" 
     and fv :: "'form \<Rightarrow> 'var annotated set" 
     and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" 
+    and ran_fv :: "'subst \<Rightarrow> 'var annotated set" 
+    and closed :: "'preform \<Rightarrow> bool" 
+    and anyP :: "'preform" 
     and antecedent :: "'rule \<Rightarrow> ('preform, 'var) antecedent list"
     and consequent :: "'rule \<Rightarrow> 'preform list" 
     and rules :: "'rule stream" +

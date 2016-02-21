@@ -18,10 +18,22 @@ begin
   definition adjacentTo :: "'vertex \<Rightarrow> ('preform, 'var) in_port \<Rightarrow> ('vertex \<times> ('preform, 'var) out_port)" where
    "adjacentTo v p = (SOME ps. (ps, (v,p)) \<in> edges)" 
   
-  fun isReg  where
-    "isReg v p = (case p of Hyp h c \<Rightarrow> None | Reg  c \<Rightarrow>
-        (case nodeOf v of Conclusion a \<Rightarrow> None | Assumption a \<Rightarrow> None | Rule r \<Rightarrow>
-        Some (r,c)
+  fun isReg where
+    "isReg v p = (case p of Hyp h c \<Rightarrow> False | Reg  c \<Rightarrow>
+        (case nodeOf v of
+          Conclusion a \<Rightarrow> False
+        | Assumption a \<Rightarrow> False
+        | Rule r \<Rightarrow> True
+        | Helper \<Rightarrow> True
+        ))"
+
+  fun toNatRule  where
+    "toNatRule v p = (case p of Hyp h c \<Rightarrow> Axiom | Reg  c \<Rightarrow>
+        (case nodeOf v of
+          Conclusion a \<Rightarrow> Axiom (* a lie *)
+        | Assumption a \<Rightarrow> Axiom
+        | Rule r \<Rightarrow> NatRule (r,c)
+        | Helper \<Rightarrow> Cut
         ))"
 
 
@@ -63,13 +75,11 @@ begin
   primcorec tree :: "'vertex \<Rightarrow> ('preform, 'var) in_port \<Rightarrow> ('vertex, 'preform, 'var) edge' list \<Rightarrow>  (('form entailment), ('rule \<times> 'preform) NatRule) dtree" where
    "root (tree v p pth) =
       ((hyps_along ((adjacentTo v p,(v,p))#pth) \<turnstile> labelAtIn v p),
-      (case adjacentTo v p of (v', p') \<Rightarrow>
-      (case isReg v' p' of None \<Rightarrow> Axiom | Some (r, c) \<Rightarrow> NatRule (r,c))
+      (case adjacentTo v p of (v', p') \<Rightarrow> toNatRule v' p'
       ))"
    | "cont (tree v p pth) =
       (case adjacentTo v p of (v', p') \<Rightarrow>
-      (case isReg v' p' of None \<Rightarrow> {||} | Some (r, c) \<Rightarrow>
-      ((\<lambda> p''. tree v' p'' ((adjacentTo v p,(v,p))#pth)) |`| inPorts (nodeOf v'))
+      (if isReg v' p' then ((\<lambda> p''. tree v' p'' ((adjacentTo v p,(v,p))#pth)) |`| inPorts (nodeOf v')) else {||}
       ))"
 
 
@@ -80,12 +90,13 @@ lemma fst_root_tree_comp[simp]: "fst \<circ> root \<circ> tree \<Gamma> v = (\<l
 *)
 
 
-lemma out_port_cases[consumes 1, case_names Assumption Hyp Rule]:
+lemma out_port_cases[consumes 1, case_names Assumption Hyp Rule Helper]:
   assumes "p |\<in>| outPorts n"
   obtains
     a where "n = Assumption a" and "p = Reg a"
     | r h c where "n = Rule r" and "p = Hyp h c"
     | r f where "n = Rule r" and "p = Reg f"
+    | "n = Helper" and "p = Reg anyP"
   using assms by (atomize_elim, cases p; cases n) auto
 
 lemma hyps_for_fimage: "hyps_for (Rule r) x = (if x |\<in>| f_antecedent r then (\<lambda> f. Hyp f x) |`| (a_hyps x) else {||})"
@@ -152,7 +163,10 @@ case (wf v p pth)
       by (fastforce simp add: fmember.rep_eq ffUnion.rep_eq)
       
     hence "labelAtIn v p |\<in>| ?\<Gamma>" by (simp add: s[symmetric] Hyp fmember.rep_eq)
-    thus ?thesis using Hyp by (auto intro: exI[where x = ?t] simp add: eff.simps simp del: hyps_along.simps)
+    thus ?thesis
+      using Hyp
+      apply (auto intro: exI[where x = ?t] simp add: eff.simps simp del: hyps_along.simps)
+      done
   next
     case (Assumption f)
 
@@ -280,6 +294,39 @@ case (wf v p pth)
 
     show ?thesis using Rule
       by (auto intro!: exI[where x = ?t]  simp add: comp_def funion_assoc)
+  next
+    case Helper
+    from Helper
+    have "hyps (nodeOf v') p' = None" by simp
+    with e `terminal_path v t pth`
+    have "terminal_path v' t ?pth'"..
+
+    have "labelAtIn v' (plain_ant anyP) = labelAtIn v p"
+      unfolding s[symmetric]
+      using Helper by (simp add: labelAtIn_def labelAtOut_def)
+    moreover
+    { fix x
+      assume "x |\<in>| cont ?t"
+      
+      hence "x = tree v' (plain_ant anyP) ?pth'"
+        by (auto simp add: Helper)
+      note this(1)
+      moreover
+
+      from  `v' |\<in>| vertices`
+      have "valid_in_port (v',plain_ant anyP)" by (simp add: Helper)
+      moreover
+
+      note `terminal_path v' t ?pth'`
+      ultimately
+
+      have "\<exists>v p pth. x = tree v p pth \<and> valid_in_port (v,p) \<and>  terminal_path v t pth"
+        by blast
+    }
+    ultimately
+
+    show ?thesis using Helper
+      by (auto intro!: exI[where x = ?t]  simp add: comp_def funion_assoc )
   qed
 qed
 
@@ -302,8 +349,7 @@ primcorec edge_tree :: "'vertex \<Rightarrow> ('preform, 'var) in_port \<Rightar
  "root (edge_tree v p) = (adjacentTo v p, (v,p))"
  | "cont (edge_tree v p) =
     (case adjacentTo v p of (v', p') \<Rightarrow>
-    (case isReg v' p' of None \<Rightarrow> {||} | Some (r, c) \<Rightarrow>
-    ((\<lambda> p. edge_tree  v' p) |`| inPorts (nodeOf v'))
+    (if isReg v' p' then ((\<lambda> p. edge_tree  v' p) |`| inPorts (nodeOf v')) else {||}
     ))"
 
 lemma tfinite_map_tree: "tfinite (map_tree f t) \<longleftrightarrow> tfinite t"
@@ -355,29 +401,67 @@ proof(coinduction arbitrary: v p es)
     by (auto simp add: adjacentTo_def, metis (no_types, lifting) eq_fst_iff tfl_some)
   let ?e = "((v',p'),(v,p))"
 
-  from `t' |\<in>| cont (edge_tree v p)`
-  obtain r a f where  "p' = Reg f" and "nodeOf v' = Rule r" and [simp]: "t' = edge_tree v' a" and "a |\<in>| f_antecedent r"
-    by (auto split: out_port.split_asm graph_node.split_asm option.split_asm )
- 
-  have "es = ?e ## ?es'" by (cases es rule: stream.exhaust_sel) simp
-  moreover
+  from e have "p' |\<in>| outPorts (nodeOf v')" using valid_edges by auto
+  thus ?case
+  proof(cases rule: out_port_cases)
+    case Hyp 
+    with  `t' |\<in>| cont (edge_tree v p)`
+    have False by auto
+    thus ?thesis..
+  next
+    case Assumption 
+    with  `t' |\<in>| cont (edge_tree v p)`
+    have False by auto
+    thus ?thesis..
+  next
+    case (Rule r f)
+    from `t' |\<in>| cont (edge_tree v p)` Rule
+    obtain a where [simp]: "t' = edge_tree v' a" and "a |\<in>| f_antecedent r"  by auto
 
-  have "?e \<in> edges" using e by simp
-  moreover
+    have "es = ?e ## ?es'" by (cases es rule: stream.exhaust_sel) simp
+    moreover
+  
+    have "?e \<in> edges" using e by simp
+    moreover
+  
+    from `p' = Reg f` `nodeOf v' = Rule r`
+    have "hyps (nodeOf v') p' = None" by simp
+    moreover
+   
+    from e valid_edges have "v' |\<in>| vertices"  by auto
+    with `nodeOf v' = Rule r` `a |\<in>| f_antecedent r`
+    have "valid_in_port (v', a)" by simp
+    moreover
+  
+    have "ipath (edge_tree v' a) ?es'" using `ipath t' _` by simp
+    ultimately
+  
+    show ?thesis by metis
+  next
+    case Helper
+    from `t' |\<in>| cont (edge_tree v p)` Helper
+    have [simp]: "t' = edge_tree v' (plain_ant anyP)" by simp
 
-  from `p' = Reg f` `nodeOf v' = Rule r`
-  have "hyps (nodeOf v') p' = None" by simp
-  moreover
- 
-  from e valid_edges have "v' |\<in>| vertices"  by auto
-  with `nodeOf v' = Rule r` `a |\<in>| f_antecedent r`
-  have "valid_in_port (v', a)" by simp
-  moreover
-
-  have "ipath (edge_tree v' a) ?es'" using `ipath t' _` by simp
-  ultimately
-
-  show ?case by metis
+    have "es = ?e ## ?es'" by (cases es rule: stream.exhaust_sel) simp
+    moreover
+  
+    have "?e \<in> edges" using e by simp
+    moreover
+  
+    from `p' = Reg anyP` `nodeOf v' = Helper`
+    have "hyps (nodeOf v') p' = None" by simp
+    moreover
+   
+    from e valid_edges have "v' |\<in>| vertices"  by auto
+    with `nodeOf v' = Helper`
+    have "valid_in_port (v', plain_ant anyP)" by simp
+    moreover
+  
+    have "ipath (edge_tree v' (plain_ant anyP)) ?es'" using `ipath t' _` by simp
+    ultimately
+  
+    show ?thesis by metis
+  qed
 qed
 
 lemma forbidden_path_prefix_is_path:

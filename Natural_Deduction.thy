@@ -5,7 +5,7 @@ imports
   Abstract_Formula
 begin
 
-datatype 'rule NatRule = Axiom | NatRule 'rule
+datatype 'rule NatRule = Axiom | NatRule 'rule | Cut
 
 type_synonym 'form entailment = "('form fset \<times> 'form)"
 
@@ -25,9 +25,12 @@ begin
     "con |\<in>| \<Gamma> \<Longrightarrow> eff Axiom (\<Gamma> \<turnstile> con) {||}"
    |eff_Rule:
     "natEff rule con ant \<Longrightarrow> eff (NatRule rule) (\<Gamma> \<turnstile> con) (add_ctxt \<Gamma> |`| ant)"
+   |eff_Cut:
+    "eff Cut (\<Gamma> \<turnstile> con) {| \<Gamma> \<turnstile> con |}"
+
   
   sublocale RuleSystem_Defs where
-    eff = eff and rules = "Axiom ## smap NatRule rules".
+    eff = eff and rules = "Cut ## Axiom ## smap NatRule rules".
 end
 
 locale ND_Rules_Inst =
@@ -52,13 +55,22 @@ begin
     \<Longrightarrow> eff (NatRule rule)
         (\<Gamma> \<turnstile> subst s (freshen a c))
         ((\<lambda>ant. ((\<lambda>p. subst s (freshen a p)) |`| a_hyps ant |\<union>| \<Gamma> \<turnstile> subst s (freshen a (a_conc ant)))) |`| ants) "
-    
+   |"nat_rule r c ants
+    \<Longrightarrow> (\<And> ant f. ant |\<in>| ants \<Longrightarrow> f |\<in>| \<Gamma> \<Longrightarrow> freshenV a ` (a_fresh ant) \<inter> fv f = {})
+    \<Longrightarrow> (\<And> ant. ant |\<in>| ants \<Longrightarrow> freshenV a ` (a_fresh ant) \<inter> ran_fv s = {})
+    \<Longrightarrow> eff (NatRule rule)
+        (\<Gamma> \<turnstile> subst s (freshen a c))
+        ((\<lambda>ant. ((\<lambda>p. subst s (freshen a p)) |`| a_hyps ant |\<union>| \<Gamma> \<turnstile> subst s (freshen a (a_conc ant)))) |`| ants)"
+   |"eff Cut (\<Gamma> \<turnstile> c') {| (\<Gamma> \<turnstile> c')|}"
+
+ inductive_simps eff_Cut_simps[simp]: "eff Cut (\<Gamma> \<turnstile> c) S"
+
 (*
      natEff r (subst s (freshen a c))
               ((\<lambda>ant. ((\<lambda>p. subst s (annotate a p)) |`| a_hyps ant \<turnstile> subst s (annotate a (a_conc ant)))) |`| ants)"
 *)
   sublocale RuleSystem_Defs where
-    eff = eff and rules = "Axiom ## smap NatRule rules".
+    eff = eff and rules = "Cut ## Axiom ## smap NatRule rules".
 end
 
 context Abstract_Task 
@@ -69,7 +81,7 @@ begin
   definition n_rules where
     "n_rules = flat (smap (\<lambda>r. map (\<lambda>c. (r,c)) (consequent r)) rules)"
   
-  sublocale ND_Rules_Inst _ _ _ _ _ _ natEff_Inst n_rules ..
+  sublocale ND_Rules_Inst _ _ _ _ _ _ _ natEff_Inst n_rules ..
 
   definition solved where
     "solved \<longleftrightarrow> (\<forall> c. c |\<in>| conc_forms \<longrightarrow> (\<exists> \<Gamma> t. fst (root t) = (\<Gamma> \<turnstile> c) \<and> \<Gamma> |\<subseteq>| ass_forms \<and> wf t \<and> tfinite t))"
