@@ -3,23 +3,17 @@ imports
   Main
   "~~/src/HOL/Library/FSet"
   "~~/src/HOL/Library/Stream"
+  Indexed_FSet
 begin
 
-context includes fset.lifting
-begin
-lift_definition fset_from_list :: "'a list => 'a fset" is set by (rule finite_set)
-lemma mem_fset_from_list[simp]: "x |\<in>| fset_from_list l  \<longleftrightarrow> x \<in> set l" by transfer rule
-lemma fimage_fset_from_list[simp]: "f |`| fset_from_list l = fset_from_list (map f l)"  by transfer auto
-lemma fset_fset_from_list[simp]: "fset (fset_from_list l) = set l"  by transfer auto
-lemmas fset_simps[simp] = set_simps[Transfer.transferred]
-end
+type_synonym 'a annotated = "('a \<times> nat)"
 
 locale Abstract_Formulas =
-  fixes freshen :: "'annot \<Rightarrow> 'preform \<Rightarrow> 'form"
+  fixes freshen :: "nat \<Rightarrow> 'preform \<Rightarrow> 'form"
   fixes pre_fv :: "'preform \<Rightarrow> 'var set"
-  fixes fv :: "'form \<Rightarrow> ('var \<times> 'annot) set"
+  fixes fv :: "'form \<Rightarrow> 'var annotated set"
   fixes subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form"
-  fixes ran_fv :: "'subst \<Rightarrow> ('var \<times> 'annot) set"
+  fixes ran_fv :: "'subst \<Rightarrow> 'var annotated set"
   fixes closed :: "'preform \<Rightarrow> bool"
   assumes fv_freshen': "fv (freshen a pf) = (\<lambda> v. (v,a)) ` pre_fv pf"
   assumes subst_no_vars: "pre_fv pf = {} \<Longrightarrow> fv (subst s f) = {}"
@@ -27,7 +21,7 @@ locale Abstract_Formulas =
   assumes closed_pre_fv: "closed pf \<Longrightarrow> pre_fv pf = {}"
   assumes closed_eq: "closed pf \<Longrightarrow> subst s1 (freshen a1 pf) = subst s2 (freshen a2 pf)"
 begin
-  definition freshenV :: "'annot \<Rightarrow> 'var \<Rightarrow>  ('var \<times> 'annot)" where "freshenV a v = (v,a)"
+  definition freshenV :: "nat \<Rightarrow> 'var \<Rightarrow>  'var annotated" where "freshenV a v = (v,a)"
   lemma fv_freshen: "fv (freshen a pf) = freshenV a ` pre_fv pf"
     using freshenV_def fv_freshen' by auto
   lemma freshenV_eq_iff: "freshenV a v = freshenV a' v' \<longleftrightarrow> a = a' \<and> v = v'"
@@ -43,9 +37,9 @@ abbreviation plain_ant :: "'preform \<Rightarrow> ('preform, 'var) antecedent"
 
 locale Abstract_Rules =
   Abstract_Formulas freshen pre_fv fv subst
-  for freshen :: "'annot \<Rightarrow> 'preform \<Rightarrow> 'form"
+  for freshen :: "nat \<Rightarrow> 'preform \<Rightarrow> 'form"
   and pre_fv :: "'preform \<Rightarrow> 'var set"
-  and fv :: "'form \<Rightarrow> ('var \<times> 'annot) set"
+  and fv :: "'form \<Rightarrow> 'var annotated set"
   and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" +
   fixes antecedent :: "'rule \<Rightarrow> ('preform, 'var) antecedent list"
   fixes consequent :: "'rule \<Rightarrow> 'preform list"
@@ -58,11 +52,11 @@ end
 
 locale Abstract_Task =
   Abstract_Rules ran_fv closed freshen pre_fv fv subst antecedent consequent rules
-  for  ran_fv :: "'subst \<Rightarrow> ('var \<times> 'annot) set" 
+  for  ran_fv :: "'subst \<Rightarrow> 'var annotated set" 
     and closed :: "'preform \<Rightarrow> bool" 
-    and freshen :: "'annot \<Rightarrow> 'preform \<Rightarrow> 'form" 
+    and freshen :: "nat \<Rightarrow> 'preform \<Rightarrow> 'form" 
     and pre_fv :: "'preform \<Rightarrow> 'var set" 
-    and fv :: "'form \<Rightarrow> ('var \<times> 'annot) set" 
+    and fv :: "'form \<Rightarrow> 'var annotated set" 
     and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" 
     and antecedent :: "'rule \<Rightarrow> ('preform, 'var) antecedent list"
     and consequent :: "'rule \<Rightarrow> 'preform list" 

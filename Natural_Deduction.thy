@@ -32,11 +32,11 @@ end
 
 locale ND_Rules_Inst =
   Abstract_Formulas freshen pre_fv fv subst ran_fv closed
-  for freshen :: "'annot \<Rightarrow> 'preform \<Rightarrow> 'form" 
+  for freshen :: "nat \<Rightarrow> 'preform \<Rightarrow> 'form" 
   and pre_fv :: "'preform \<Rightarrow> 'var set" 
-  and fv :: "'form \<Rightarrow> ('var \<times> 'annot) set" 
+  and fv :: "'form \<Rightarrow> 'var annotated set" 
   and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" 
-  and ran_fv :: "'subst \<Rightarrow> ('var \<times> 'annot) set" 
+  and ran_fv :: "'subst \<Rightarrow> 'var annotated set" 
   and closed :: "'preform \<Rightarrow> bool" +
 
   fixes nat_rule :: "'rule \<Rightarrow> 'preform \<Rightarrow> ('preform, 'var) antecedent fset \<Rightarrow> bool"
@@ -74,7 +74,10 @@ begin
   definition solved where
     "solved \<longleftrightarrow> (\<forall> c. c |\<in>| conc_forms \<longrightarrow> (\<exists> \<Gamma> t. fst (root t) = (\<Gamma> \<turnstile> c) \<and> \<Gamma> |\<subseteq>| ass_forms \<and> wf t \<and> tfinite t))"
 
+
 end
+
+(*
 
 section {* Elaborated tree (annotation and substitution) *}
 
@@ -99,9 +102,12 @@ begin
         (\<Gamma> \<turnstile> subst s (freshen a c))
         ((\<lambda>ant. ((\<lambda>p. subst s (freshen a p)) |`| a_hyps ant |\<union>| \<Gamma> \<turnstile> subst s (freshen a (a_conc ant)))) |`| ants) "
 
-  coinductive ewf where
-    ewf: "\<lbrakk>deElaborate (snd (root t)) \<in> R; eeff (snd (root t)) (fst (root t)) (fimage (fst o root) (cont t));
-      \<And>t'. t' |\<in>| cont t \<Longrightarrow> ewf t'\<rbrakk> \<Longrightarrow> ewf t"
+  coinductive ewf :: "('form entailment \<times> ('rule, 'annot, 'subst) ElaboratedNatRule) tree \<Rightarrow> bool" where
+    ewf: "\<lbrakk>
+        deElaborate (snd (root t)) \<in> R;
+        eeff (snd (root t)) (fst (root t)) (fimage (fst o root) (cont t));
+        \<And>t'. t' |\<in>| cont t \<Longrightarrow> ewf t'
+      \<rbrakk> \<Longrightarrow> ewf t"
 
   definition elaborate_step where
     "elaborate_step r con ants = (SOME er. eeff er con ants \<and> deElaborate er = r)"
@@ -191,5 +197,37 @@ begin
   qed
     
 end
+
+section {* Elaborated tree (fixed annotation, only substitution) *}
+
+type_synonym idx = "nat list"
+
+inductive has_index :: "idx \<Rightarrow> ('rule, idx, 'subst) ElaboratedNatRule \<Rightarrow> bool" where
+  "has_index idx EAxiom"
+ |"has_index idx (ENatRule r idx s)"
+
+
+(* Just fixes 'annot. When this is not a type parameter, this can just be ND_Rules_Inst*)
+locale ND_Rules_Inst_Fixed =
+  ND_Rules_Inst freshen pre_fv fv subst ran_fv closed nat_rule rules
+  for freshen :: "idx \<Rightarrow> 'preform \<Rightarrow> 'form" 
+  and pre_fv :: "'preform \<Rightarrow> 'var set" 
+  and fv :: "'form \<Rightarrow> ('var \<times> idx) set" 
+  and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" 
+  and ran_fv :: "'subst \<Rightarrow> ('var \<times> idx) set" 
+  and closed :: "'preform \<Rightarrow> bool"
+  and nat_rule :: "'rule \<Rightarrow> 'preform \<Rightarrow> ('preform, 'var) antecedent fset \<Rightarrow> bool"
+  and rules :: "'rule stream"
+begin
+
+  coinductive fewf :: "idx \<Rightarrow> ('form entailment \<times> ('rule, idx, 'subst) ElaboratedNatRule) tree \<Rightarrow> bool" where
+    fewf: "\<lbrakk>
+        deElaborate (snd (root t)) \<in> R;
+        eeff (snd (root t)) (fst (root t)) (fimage (fst o root) (cont t));
+        has_index idx (snd (root t));
+        \<And>t'. t' |\<in>|\<^bsub>i\<^esub> cont t \<Longrightarrow> fewf (i#idx) t'
+      \<rbrakk> \<Longrightarrow> fewf idx t"
+end
+*)
 
 end
