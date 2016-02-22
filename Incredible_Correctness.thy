@@ -11,7 +11,6 @@ lemma ffUnion_finsert[simp]: "ffUnion (finsert x S) = x |\<union>| ffUnion S"
   by (auto simp add: fmember.rep_eq ffUnion.rep_eq)
 
 
-
 context Tasked_Proof_Graph
 begin
 

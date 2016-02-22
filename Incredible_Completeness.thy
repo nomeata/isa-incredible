@@ -184,11 +184,11 @@ datatype Vertex
   | AssumptionV "(nat \<times> nat list)"
 
 
-print_locale Abstract_Task
 locale Solved_Task =
-  Abstract_Task ran_fv closed freshen pre_fv fv subst antecedent consequent rules assumptions conclusions
+  Abstract_Task freshen pre_fv fv subst ran_fv closed anyP antecedent consequent rules assumptions conclusions
   for   ran_fv :: "'subst \<Rightarrow> ('var \<times> nat) set" 
     and closed :: "'preform \<Rightarrow> bool" 
+    and anyP :: "'preform" 
     and freshen :: "nat \<Rightarrow> 'preform \<Rightarrow> 'form" 
     and pre_fv :: "'preform \<Rightarrow> 'var set" 
     and fv :: "'form \<Rightarrow> ('var \<times> nat) set" 
@@ -301,8 +301,8 @@ fun nodeOf :: "Vertex \<Rightarrow> ('preform, 'rule) graph_node" where
 | "nodeOf (RuleV (i,is)) = Rule (fst (fromRule (snd (root (tree_at (ts (conc_forms |!| i)) is)))))"
 | "nodeOf (AssumptionV (i,is)) = Assumption (preform_of_closed_form (snd (fst (root (tree_at (ts (conc_forms |!| i)) is)))))"
 
-print_locale Tasked_Proof_Graph
-sublocale Tasked_Proof_Graph freshen fv ran_fv closed subst pre_fv antecedent consequent fresh_vars rules assumptions conclusions
+sublocale Tasked_Proof_Graph freshen fv ran_fv closed anyP subst pre_fv antecedent consequent fresh_vars rules assumptions conclusions
   vertices nodeOf
+  sorry
 
 end

@@ -128,13 +128,13 @@ begin
   lemma snd_set_path_verties: "path v v' pth \<Longrightarrow> fst ` snd ` set pth \<subseteq> fset vertices"
     apply (induction rule: path.induct)
     apply auto
-    apply (metis Pre_Port_Graph.valid_in_port.elims(2) edge_end.simps notin_fset splitD valid_edges)
+    apply (metis Pre_Port_Graph.valid_in_port.elims(2) edge_end.simps notin_fset case_prodD valid_edges)
     done
 
   lemma fst_set_path_verties: "path v v' pth \<Longrightarrow> fst ` fst ` set pth \<subseteq> fset vertices"
     apply (induction rule: path.induct)
     apply auto
-    apply (metis Pre_Port_Graph.valid_out_port.elims(2) edge_begin.simps notin_fset splitD valid_edges)
+    apply (metis Pre_Port_Graph.valid_out_port.elims(2) edge_begin.simps notin_fset case_prodD valid_edges)
     done
 end
 
@@ -388,7 +388,7 @@ proof-
   proof (rule card_mono[OF finite_fset])    
     from assms(1) 
     show "set (map fst (map fst pth)) \<subseteq> fset vertices"
-      by (induction v v' pth) (auto, metis valid_edges notin_fset splitD valid_out_port.simps)
+      by (induction v v' pth) (auto, metis valid_edges notin_fset case_prodD valid_out_port.simps)
   qed
   also have "\<dots> = fcard vertices" by (simp add: fcard.rep_eq)
   finally show ?thesis.
