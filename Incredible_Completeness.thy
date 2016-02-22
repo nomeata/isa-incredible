@@ -39,6 +39,7 @@ begin
     iwf: "\<lbrakk>
        Reg p |\<in>| outPorts n;
        \<And> ip. ip |\<in>| inPorts n \<Longrightarrow>
+          subst s (freshen i (labelsIn n ip)) |\<notin>| ass_forms \<and>
           subst s (freshen i (labelsIn n ip)) |\<in>| (\<lambda> h . subst s (freshen i (labelsOut n h))) |`| hyps_for n ip |\<union>| \<Gamma> \<or>
           (\<exists> t. ants ip = Some t \<and>
               iwf t ((\<lambda> h . subst s (freshen i (labelsOut n h))) |`| hyps_for n ip |\<union>| \<Gamma> \<turnstile> subst s (freshen i (labelsIn n ip))));
@@ -46,6 +47,9 @@ begin
        \<And> ip. ip |\<in>| inPorts n  \<Longrightarrow> freshenV i ` (local_vars n ip) \<inter> ran_fv s = {};
        c = subst s (freshen i (labelsOut n (Reg p :: (('preform, 'var) out_port))))
       \<rbrakk> \<Longrightarrow> iwf (INode n p i s ants) (\<Gamma> \<turnstile> c)"  
+
+fun del_global_assn :: "'form entailment \<Rightarrow> 'form entailment" where
+  "del_global_assn (\<Gamma> \<turnstile> c) = (\<Gamma> |-| ass_forms \<turnstile> c)"
 
 
 lemma build_iwf:
@@ -64,7 +68,7 @@ proof(induction)
 
   from `wf t`
   have "\<And> t'. t' |\<in>| cont t \<Longrightarrow> wf t'" using wf.simps by blast
-  hence IH: "\<And> t'. t' |\<in>| cont t \<Longrightarrow> \<exists>it'. iwf it' (fst (root t'))" using tfinite(2) by blast
+  hence IH: "\<And> \<Gamma>' t'. t' |\<in>| cont t \<Longrightarrow> (\<exists>it'. iwf it' (fst (root t')))" using tfinite(2) by blast
   then obtain its where its: "\<And> t'. t' |\<in>| cont t \<Longrightarrow> iwf (its t') (fst (root t'))"
     by metis
 
@@ -72,13 +76,27 @@ proof(induction)
   show ?case
   proof(cases rule: eff.cases[case_names Axiom NatRule Cut])
   case (Axiom con \<Gamma>)
-    obtain s where [simp]: "subst s (freshen undefined anyP) = con" by atomize_elim (rule anyP_is_any)
+    show ?thesis
+    proof (cases "con |\<in>| ass_forms")
+      case True (* Global assumption *)
+      then obtain c :: "'preform" where
+        "c \<in> set assumptions" and [simp]: "subst undefined (freshen undefined c) = con"
+        by (auto simp add:  ass_forms_def)
 
-    let "?it" = "INode Helper anyP undefined s empty ::  ('preform, 'rule, 'subst, 'var) itree"
+      let "?it" = "INode (Assumption c) c undefined undefined empty ::  ('preform, 'rule, 'subst, 'var) itree"
 
-    from  `con |\<in>| \<Gamma>`
-    have "iwf ?it (\<Gamma> \<turnstile> con)" by (auto intro: iwf)
-    thus ?thesis unfolding Axiom..
+      have "iwf ?it (\<Gamma> \<turnstile> con)"  by (auto intro: iwf)
+      thus ?thesis unfolding Axiom..
+    next
+      case False
+      obtain s where [simp]: "subst s (freshen undefined anyP) = con" by atomize_elim (rule anyP_is_any)
+  
+      let "?it" = "INode Helper anyP undefined s empty ::  ('preform, 'rule, 'subst, 'var) itree"
+  
+      from  `con |\<in>| \<Gamma>` False
+      have "iwf ?it (\<Gamma> \<turnstile> con)" by (auto intro: iwf)
+      thus ?thesis unfolding Axiom..
+    qed
   next
   case (NatRule r c ants \<Gamma> i s rule)
     from `natEff_Inst r c ants`
@@ -101,18 +119,19 @@ proof(induction)
       assume "ant |\<in>| ants"
       from its[OF to_t_in_cont[OF this]]
       have "iwf (its (to_t ant)) (fst (root (to_t ant)))".
-      also have "fst (root (to_t ant)) = ((\<lambda>h. subst s (freshen i (labelsOut (Rule (fst r)) h))) |`| hyps_for (Rule (fst r)) ant |\<union>|
-            \<Gamma> \<turnstile> subst s (freshen i (a_conc ant)))"
+      also have "fst (root (to_t ant)) =
+        ((\<lambda>h. subst s (freshen i (labelsOut (Rule (fst r)) h))) |`| hyps_for (Rule (fst r)) ant |\<union>| \<Gamma>
+         \<turnstile> subst s (freshen i (a_conc ant)))"
         by (auto simp add: to_t_root `ant |\<in>| ants`)
       finally
       have "iwf (its (to_t ant))
            ((\<lambda>h. subst s (freshen i (labelsOut (Rule (fst r)) h))) |`| hyps_for (Rule (fst r)) ant |\<union>|
-            \<Gamma> \<turnstile> subst s (freshen i (a_conc ant)))".
+            \<Gamma>  \<turnstile> subst s (freshen i (a_conc ant)))".
     }
     moreover
     note NatRule(5,6)
     ultimately
-    have "iwf ?it (\<Gamma> \<turnstile> subst s (freshen i c))"
+    have "iwf ?it ((\<Gamma> \<turnstile> subst s (freshen i c)))"
       apply -
       apply (rule iwf)
       apply auto
@@ -138,51 +157,71 @@ proof(induction)
   qed 
 qed
 
+definition to_it :: "('form entailment \<times> ('rule \<times> 'preform) NatRule) tree \<Rightarrow> ('preform,'rule,'subst,'var) itree" where
+  "to_it t = (SOME it. iwf it (fst (root t)))"
+
+lemma iwf_to_it:
+  assumes "tfinite t" and "wf t"
+  shows "iwf (to_it t) (fst (root t))"
+unfolding to_it_def using build_iwf[OF assms] by (rule someI2_ex)
+
+
+  fun fv_entailment :: "'form entailment \<Rightarrow> 'var annotated set" where
+    "fv_entailment (\<Gamma> \<turnstile> c) = Union (fv ` fset \<Gamma>) \<union> fv c"
+
+  inductive iwf' :: "('preform,'rule,'subst,'var) itree \<Rightarrow> 'form entailment \<Rightarrow> bool" where
+    iwf': "\<lbrakk>
+       Reg p |\<in>| outPorts n;
+       \<And> ip. ip |\<in>| inPorts n \<Longrightarrow>
+          subst s (freshen i (labelsIn n ip)) |\<notin>| ass_forms \<and>
+          subst s (freshen i (labelsIn n ip)) |\<in>| (\<lambda> h . subst s (freshen i (labelsOut n h))) |`| hyps_for n ip |\<union>| \<Gamma> \<or>
+          (\<exists> t. ants ip = Some t \<and>
+              iwf' t ((\<lambda> h . subst s (freshen i (labelsOut n h))) |`| hyps_for n ip |\<union>| \<Gamma> \<turnstile> subst s (freshen i (labelsIn n ip))));
+       ran_fv s \<subseteq> fv_entailment (\<Gamma> \<turnstile> c) \<union> range (freshenV i);
+       c = subst s (freshen i (labelsOut n (Reg p :: (('preform, 'var) out_port))))
+      \<rbrakk> \<Longrightarrow> iwf' (INode n p i s ants) (\<Gamma> \<turnstile> c)"  
+
+lemma iwf'_to_it:
+  assumes "tfinite t" and "wf t"
+  shows "iwf' (to_it t) (fst (root t))"
+sorry
+
+
+inductive it_pathsP :: "('preform,'rule,'subst,'var) itree \<Rightarrow> ('preform, 'var) in_port list \<Rightarrow> bool"  where
+   it_paths_Nil: "it_pathsP t []"
+ | it_paths_Cons: "i |\<in>| inPorts (iNodeOf t) \<Longrightarrow> iAnts t i = Some t' \<Longrightarrow> it_pathsP t' is \<Longrightarrow> it_pathsP t (i#is)"
+
+definition it_paths:: "('preform,'rule,'subst,'var) itree \<Rightarrow> ('preform, 'var) in_port list set"  where
+  "it_paths t = Collect (it_pathsP t)"
+
+ lemma it_paths_eq [pred_set_conv]: "it_pathsP t = (\<lambda>x. x \<in> it_paths t)"
+   by(simp add: it_paths_def)
+
+ lemmas it_paths_intros [intro?] = it_pathsP.intros[to_set]
+ lemmas it_paths_induct [consumes 1, induct set: it_paths] = it_pathsP.induct[to_set]
+ lemmas it_paths_cases [consumes 1, cases set: it_paths] = it_pathsP.cases[to_set]
+ lemmas it_paths_simps = it_pathsP.simps[to_set]
+
+
+lemma it_paths_Union: "it_paths t \<subseteq> insert [] (Union (fset ((\<lambda> i. case iAnts t i of Some t \<Rightarrow> (op # i) ` it_paths t | None \<Rightarrow> {}) |`| (inPorts (iNodeOf t)))))"
+  apply (rule)
+  apply (subst (asm) it_paths_simps)
+  apply (fastforce split: prod.split simp add: fmember.rep_eq)
+  done
+
+lemma finite_it_paths[simp]: "finite (it_paths t)"
+  apply (induction t)
+  apply (rule finite_subset[OF it_paths_Union])
+  apply (fastforce split: option.split intro: range_eqI)
+  done
+
 end
 
-
-
-inductive tpathsP :: "'a tree \<Rightarrow> nat list \<Rightarrow> bool"  where
-   tpaths_Nil: "tpathsP t []"
- | tpaths_Cons: "t' |\<in>|\<^bsub>i\<^esub> cont t \<Longrightarrow> tpathsP t' is \<Longrightarrow> tpathsP t (i#is)"
-
-definition tpaths:: "'a tree \<Rightarrow> nat list set"  where
-  "tpaths t = Collect (tpathsP t)"
-
- lemma tpaths_eq [pred_set_conv]: "tpathsP t = (\<lambda>x. x \<in> tpaths t)"
-   by(simp add: tpaths_def)
-
- lemmas tpaths_intros [intro?] = tpathsP.intros[to_set]
- lemmas tpaths_induct [consumes 1, induct set: tpaths] = tpathsP.induct[to_set]
- lemmas tpaths_cases [consumes 1, cases set: tpaths] = tpathsP.cases[to_set]
- lemmas tpaths_simps = tpathsP.simps[to_set]
-
-lemma upd_nth_zero: "y < n \<Longrightarrow> x = [0..<n] ! y \<longleftrightarrow> x = y"
-  apply (induction y arbitrary: x n)
-  apply auto
-  done
-
-lemma tpaths_Union: "tpaths t = insert [] (Union (set (map (\<lambda> (i,t). (op # i) ` tpaths t) (indexed_members  (cont t)))))"
-  apply (rule set_eqI)
-  apply (subst tpaths_simps)
-  apply (fastforce split: prod.split simp add: indexed_fmember_is_fmember set_zip)
-  done
-
-lemma finite_tpaths[simp]: "tfinite t \<Longrightarrow> finite (tpaths t)"
-  apply (induction t rule: tfinite.induct)
-  apply (subst tpaths_Union)
-  apply (auto simp add: set_zip indexed_fmember_is_fmember)
-  done
-
-fun tree_at :: "'a tree \<Rightarrow> nat list \<Rightarrow> 'a tree" where
+fun tree_at :: "('preform,'rule,'subst,'var) itree \<Rightarrow> ('preform, 'var) in_port list \<Rightarrow> ('preform,'rule,'subst,'var) itree" where
   "tree_at t [] = t"
-| "tree_at t (i#is) = tree_at (cont t |!| i) is"
+| "tree_at t (i#is) = tree_at (the (iAnts t i)) is"
 
-datatype Vertex
-  = RuleV "(nat \<times> nat list)"
-  | ConclusionV nat
-  | AssumptionV "(nat \<times> nat list)"
-
+type_synonym ('preform, 'var) vertex = "('preform \<times> ('preform, 'var) in_port list option)"
 
 locale Solved_Task =
   Abstract_Task freshen pre_fv fv subst ran_fv closed anyP antecedent consequent rules assumptions conclusions
@@ -203,7 +242,7 @@ begin
 
 text {* Lets get our hand on concrete trees *}
 
-definition ts where
+definition ts :: "'form \<Rightarrow> (('form entailment) \<times> ('rule \<times> 'preform) NatRule) tree" where
   "ts c = (SOME t. snd (fst (root t)) = c \<and> fst (fst (root t)) |\<subseteq>| ass_forms \<and> wf t \<and> tfinite t)"
 
 lemma
@@ -217,89 +256,23 @@ lemma
   using solved assms
   by (force simp add: solved_def)
 
+abbreviation to_form :: "'preform \<Rightarrow> 'form" where
+  "to_form pf \<equiv> subst undefined (freshen undefined pf)"
+  
 
-fun isRule :: "'x NatRule \<Rightarrow> bool" where
-  "isRule Axiom = False"
- |"isRule (NatRule _) = True"
+definition vertices :: "('preform, 'var) vertex fset"  where
+  "vertices = Abs_fset (Union ( set (map (\<lambda> c. insert (c, None) ((\<lambda> p. (c, Some p)) ` (it_paths (to_it (ts (to_form c))))))  conclusions)))"
 
-fun fromRule :: "'x NatRule \<Rightarrow> 'x" where
-  "fromRule Axiom = undefined"
- |"fromRule (NatRule r) = r"
-
-inductive_set rule_paths for c where
-  "is \<in> tpaths (ts c) \<Longrightarrow> isRule (snd (root (tree_at (ts c) is))) \<Longrightarrow> is \<in> rule_paths c"
-
-lemma rule_paths_subset: "rule_paths c \<subseteq> tpaths (ts c)"
-  by (auto simp add: rule_paths.simps)
-
-lemma finite_rule_paths[simp]:
-  "c |\<in>| conc_forms \<Longrightarrow> finite (rule_paths c)"
-  by (meson finite_tpaths rev_finite_subset rule_paths_subset ts_finite)
-
-inductive isAssumption :: "'form \<Rightarrow> 'x NatRule \<Rightarrow> bool" where
-  "c |\<in>| ass_forms \<Longrightarrow> isAssumption c Axiom"
-
-inductive_set assm_paths for c where
-  "is \<in> tpaths (ts c) \<Longrightarrow> isAssumption  (snd (fst (root (tree_at (ts c) is))))  (snd (root (tree_at (ts c) is))) \<Longrightarrow> is \<in> assm_paths c"
-
-lemma assm_paths_subset: "assm_paths c \<subseteq> tpaths (ts c)"
-  by (auto simp add: assm_paths.simps)
-
-lemma finite_assm_paths[simp]:
-  "c |\<in>| conc_forms \<Longrightarrow> finite (assm_paths c)"
-  by (meson finite_tpaths rev_finite_subset assm_paths_subset ts_finite)
-
-definition rule_vertices where
-  "rule_vertices = Abs_fset ((Union (set (map (\<lambda> (i,c). (Pair i) ` rule_paths c) (indexed_members conc_forms)))))"
-
-lemma mem_rule_vertices: "v |\<in>| rule_vertices \<longleftrightarrow> (\<exists> c. c |\<in>|\<^bsub>fst v\<^esub> conc_forms \<and> snd v \<in> rule_paths c)"
-  unfolding rule_vertices_def
-  apply (subst fmember.abs_eq)
-  apply (auto simp add: eq_onp_same_args indexed_fmember_is_fmember)[1]
-  apply (cases "v")
-  apply (auto simp add: Bex_def)
-  done
-
-lemma mem_rule_vertices2: "v |\<in>| rule_vertices \<longleftrightarrow> fst v < size conc_forms \<and> snd v \<in> rule_paths (conc_forms |!| fst v)"
-  unfolding rule_vertices_def
-  apply (cases v)
-  apply (subst fmember.abs_eq)
-  apply (auto simp add: eq_onp_same_args indexed_fmember_is_fmember)[1]
-  apply (auto simp add: Bex_def indexed_fmember_fnth )
-  done
-
-definition assm_vertices where
-  "assm_vertices = Abs_fset ((Union (set (map (\<lambda> (i,c). (Pair i) ` assm_paths c) (indexed_members conc_forms)))))"
-
-lemma mem_assm_vertices: "v |\<in>| assm_vertices \<longleftrightarrow> (\<exists> c. c |\<in>|\<^bsub>fst v\<^esub> conc_forms \<and> snd v \<in> assm_paths c)"
-  unfolding assm_vertices_def
-  apply (subst fmember.abs_eq)
-  apply (auto simp add: eq_onp_same_args indexed_fmember_is_fmember)[1]
-  apply (cases "v")
-  apply (auto simp add: Bex_def)
-  done
-
-lemma mem_assm_vertices2: "v |\<in>| assm_vertices \<longleftrightarrow> fst v < size conc_forms \<and> snd v \<in> assm_paths (conc_forms |!| fst v)"
-  unfolding assm_vertices_def
-  apply (cases v)
-  apply (subst fmember.abs_eq)
-  apply (auto simp add: eq_onp_same_args indexed_fmember_is_fmember)[1]
-  apply (auto simp add: Bex_def indexed_fmember_fnth )
-  done
-
-definition conc_vertices where
-  "conc_vertices = fidx conc_forms |`| conc_forms"
-
-definition vertices where
-  "vertices = RuleV |`| rule_vertices |\<union>| AssumptionV |`| assm_vertices |\<union>| ConclusionV |`| conc_vertices"
+lemma mem_vertices: "v |\<in>| vertices \<longleftrightarrow>  (fst v \<in> set conclusions \<and> (snd v = None \<or> snd v \<in> Some ` it_paths (to_it (ts (to_form (fst v))))))"
+  unfolding vertices_def fmember.rep_eq ffUnion.rep_eq 
+  by (cases v) (auto simp add: Abs_fset_inverse Bex_def)
 
 definition preform_of_closed_form :: "'form \<Rightarrow> 'preform" where
   "preform_of_closed_form f = (SOME pf. subst undefined (freshen undefined pf) = f)"
 
-fun nodeOf :: "Vertex \<Rightarrow> ('preform, 'rule) graph_node" where
-  "nodeOf (ConclusionV n) = Conclusion (preform_of_closed_form (conc_forms |!| n))"
-| "nodeOf (RuleV (i,is)) = Rule (fst (fromRule (snd (root (tree_at (ts (conc_forms |!| i)) is)))))"
-| "nodeOf (AssumptionV (i,is)) = Assumption (preform_of_closed_form (snd (fst (root (tree_at (ts (conc_forms |!| i)) is)))))"
+fun nodeOf :: "('preform, 'var) vertex \<Rightarrow> ('preform, 'rule) graph_node" where
+  "nodeOf (pf, None) = Conclusion pf"
+| "nodeOf (pf, Some p) = iNodeOf (tree_at (to_it (ts (to_form pf))) p)"
 
 sublocale Tasked_Proof_Graph freshen fv ran_fv closed anyP subst pre_fv antecedent consequent fresh_vars rules assumptions conclusions
   vertices nodeOf
