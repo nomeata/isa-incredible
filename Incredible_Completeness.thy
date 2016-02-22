@@ -37,10 +37,12 @@ context Abstract_Task
 begin
   inductive iwf :: "('preform,'rule,'subst,'var) itree \<Rightarrow> 'form entailment \<Rightarrow> bool" where
     iwf: "\<lbrakk>
+       n \<in> sset nodes;
        Reg p |\<in>| outPorts n;
        \<And> ip. ip |\<in>| inPorts n \<Longrightarrow>
           subst s (freshen i (labelsIn n ip)) |\<notin>| ass_forms \<and>
-          subst s (freshen i (labelsIn n ip)) |\<in>| (\<lambda> h . subst s (freshen i (labelsOut n h))) |`| hyps_for n ip |\<union>| \<Gamma> \<or>
+          subst s (freshen i (labelsIn n ip)) |\<in>| (\<lambda> h . subst s (freshen i (labelsOut n h))) |`| hyps_for n ip |\<union>| \<Gamma> \<and>
+          ants ip = None \<or>
           (\<exists> t. ants ip = Some t \<and>
               iwf t ((\<lambda> h . subst s (freshen i (labelsOut n h))) |`| hyps_for n ip |\<union>| \<Gamma> \<turnstile> subst s (freshen i (labelsIn n ip))));
        \<And> ip. ip |\<in>| inPorts n  \<Longrightarrow> f |\<in>| \<Gamma> \<Longrightarrow> freshenV i ` (local_vars n ip) \<inter> fv f = {};
@@ -85,7 +87,9 @@ proof(induction)
 
       let "?it" = "INode (Assumption c) c undefined undefined empty ::  ('preform, 'rule, 'subst, 'var) itree"
 
-      have "iwf ?it (\<Gamma> \<turnstile> con)"  by (auto intro: iwf)
+      from `c \<in> set assumptions`
+      have "Assumption c \<in> sset nodes" by (simp add: nodes_def)
+      hence"iwf ?it (\<Gamma> \<turnstile> con)"  by (auto intro!: iwf)
       thus ?thesis unfolding Axiom..
     next
       case False
@@ -94,13 +98,13 @@ proof(induction)
       let "?it" = "INode Helper anyP undefined s empty ::  ('preform, 'rule, 'subst, 'var) itree"
   
       from  `con |\<in>| \<Gamma>` False
-      have "iwf ?it (\<Gamma> \<turnstile> con)" by (auto intro: iwf)
+      have "iwf ?it (\<Gamma> \<turnstile> con)" by (auto intro!: iwf simp add: nodes_def)
       thus ?thesis unfolding Axiom..
     qed
   next
-  case (NatRule r c ants \<Gamma> i s rule)
-    from `natEff_Inst r c ants`
-    have "snd r = c"  and [simp]: "f_antecedent (fst r) = ants" and "c \<in> set (consequent (fst r))"
+  case (NatRule rule c ants \<Gamma> i s)
+    from `natEff_Inst rule c ants`
+    have "snd rule = c"  and [simp]: "f_antecedent (fst rule) = ants" and "c \<in> set (consequent (fst rule))"
       by (auto simp add: natEff_Inst.simps)  
 
     from `(fst \<circ> root) |\`| cont t = (\<lambda>ant. (\<lambda>p. subst s (freshen i p)) |\`| a_hyps ant |\<union>| \<Gamma> \<turnstile> subst s (freshen i (a_conc ant))) |\`| ants`
@@ -110,22 +114,28 @@ proof(induction)
       and to_t_root: "\<And> ant. ant |\<in>| ants \<Longrightarrow>  fst (root (to_t ant)) = ((\<lambda>p. subst s (freshen i p)) |`| a_hyps ant |\<union>| \<Gamma> \<turnstile> subst s (freshen i (a_conc ant)))"
       by auto
 
-    let "?it" = "INode (Rule (fst r)) c i s (\<lambda> ant. if ant |\<in>| ants then Some (its (to_t ant)) else None) ::  ('preform, 'rule, 'subst, 'var) itree"
+    let "?it" = "INode (Rule (fst rule)) c i s (\<lambda> ant. if ant |\<in>| ants then Some (its (to_t ant)) else None) ::  ('preform, 'rule, 'subst, 'var) itree"
 
-    from `c \<in> set (consequent (fst r))`
-    have "c |\<in>| f_consequent (fst r)" by (simp add: f_consequent_def)
+    from `snd (root t) \<in> R`
+    have "fst rule \<in> sset rules"
+      unfolding NatRule
+      by (auto simp add: stream.set_map n_rules_def no_empty_conclusions )
+    hence "Rule (fst rule) \<in> sset nodes" by (auto simp add: nodes_def stream.set_map)
+    moreover
+    from `c \<in> set (consequent (fst rule))`
+    have "c |\<in>| f_consequent (fst rule)" by (simp add: f_consequent_def)
     moreover
     { fix ant
       assume "ant |\<in>| ants"
       from its[OF to_t_in_cont[OF this]]
       have "iwf (its (to_t ant)) (fst (root (to_t ant)))".
       also have "fst (root (to_t ant)) =
-        ((\<lambda>h. subst s (freshen i (labelsOut (Rule (fst r)) h))) |`| hyps_for (Rule (fst r)) ant |\<union>| \<Gamma>
+        ((\<lambda>h. subst s (freshen i (labelsOut (Rule (fst rule)) h))) |`| hyps_for (Rule (fst rule)) ant |\<union>| \<Gamma>
          \<turnstile> subst s (freshen i (a_conc ant)))"
         by (auto simp add: to_t_root `ant |\<in>| ants`)
       finally
       have "iwf (its (to_t ant))
-           ((\<lambda>h. subst s (freshen i (labelsOut (Rule (fst r)) h))) |`| hyps_for (Rule (fst r)) ant |\<union>|
+           ((\<lambda>h. subst s (freshen i (labelsOut (Rule (fst rule)) h))) |`| hyps_for (Rule (fst rule)) ant |\<union>|
             \<Gamma>  \<turnstile> subst s (freshen i (a_conc ant)))".
     }
     moreover
@@ -150,9 +160,10 @@ proof(induction)
 
     let "?it" = "INode Helper anyP undefined s (empty(plain_ant anyP \<mapsto> it')) ::  ('preform, 'rule, 'subst, 'var) itree"
 
-    from `iwf it' (\<Gamma> \<turnstile> con)`
+    have "Helper \<in> i.R nodes" by (simp add: nodes_def)
+    with `iwf it' (\<Gamma> \<turnstile> con)`
     have "iwf ?it (\<Gamma> \<turnstile> con)"
-      by (auto intro: iwf)
+      by (auto intro!: iwf)
     thus ?thesis unfolding Cut..
   qed 
 qed
@@ -171,10 +182,12 @@ unfolding to_it_def using build_iwf[OF assms] by (rule someI2_ex)
 
   inductive iwf' :: "('preform,'rule,'subst,'var) itree \<Rightarrow> 'form entailment \<Rightarrow> bool" where
     iwf': "\<lbrakk>
+       n \<in> sset nodes;
        Reg p |\<in>| outPorts n;
        \<And> ip. ip |\<in>| inPorts n \<Longrightarrow>
           subst s (freshen i (labelsIn n ip)) |\<notin>| ass_forms \<and>
-          subst s (freshen i (labelsIn n ip)) |\<in>| (\<lambda> h . subst s (freshen i (labelsOut n h))) |`| hyps_for n ip |\<union>| \<Gamma> \<or>
+          subst s (freshen i (labelsIn n ip)) |\<in>| (\<lambda> h . subst s (freshen i (labelsOut n h))) |`| hyps_for n ip |\<union>| \<Gamma> \<and>
+          ants ip = None \<or>
           (\<exists> t. ants ip = Some t \<and>
               iwf' t ((\<lambda> h . subst s (freshen i (labelsOut n h))) |`| hyps_for n ip |\<union>| \<Gamma> \<turnstile> subst s (freshen i (labelsIn n ip))));
        ran_fv s \<subseteq> fv_entailment (\<Gamma> \<turnstile> c) \<union> range (freshenV i);
@@ -191,6 +204,8 @@ inductive it_pathsP :: "('preform,'rule,'subst,'var) itree \<Rightarrow> ('prefo
    it_paths_Nil: "it_pathsP t []"
  | it_paths_Cons: "i |\<in>| inPorts (iNodeOf t) \<Longrightarrow> iAnts t i = Some t' \<Longrightarrow> it_pathsP t' is \<Longrightarrow> it_pathsP t (i#is)"
 
+inductive_cases it_pathP_ConsE: "it_pathsP t (i#is)"
+
 definition it_paths:: "('preform,'rule,'subst,'var) itree \<Rightarrow> ('preform, 'var) in_port list set"  where
   "it_paths t = Collect (it_pathsP t)"
 
@@ -200,7 +215,11 @@ definition it_paths:: "('preform,'rule,'subst,'var) itree \<Rightarrow> ('prefor
  lemmas it_paths_intros [intro?] = it_pathsP.intros[to_set]
  lemmas it_paths_induct [consumes 1, induct set: it_paths] = it_pathsP.induct[to_set]
  lemmas it_paths_cases [consumes 1, cases set: it_paths] = it_pathsP.cases[to_set]
+ lemmas it_paths_ConsE = it_pathP_ConsE[to_set]
  lemmas it_paths_simps = it_pathsP.simps[to_set]
+
+ lemma [simp]: "[] \<in> it_paths t" by (rule it_paths_intros)
+
 
 
 lemma it_paths_Union: "it_paths t \<subseteq> insert [] (Union (fset ((\<lambda> i. case iAnts t i of Some t \<Rightarrow> (op # i) ` it_paths t | None \<Rightarrow> {}) |`| (inPorts (iNodeOf t)))))"
@@ -221,7 +240,19 @@ fun tree_at :: "('preform,'rule,'subst,'var) itree \<Rightarrow> ('preform, 'var
   "tree_at t [] = t"
 | "tree_at t (i#is) = tree_at (the (iAnts t i)) is"
 
+context Abstract_Task
+begin
+lemma it_path_SnocE[elim_format]:
+  assumes "is @ [i] \<in> it_paths t"
+  shows "is \<in> it_paths t \<and> i |\<in>| inPorts (iNodeOf (tree_at t is))"
+using assms
+by (induction "is" arbitrary: t)(auto intro!: it_paths_intros elim!: it_paths_ConsE)
+end
+
+
 type_synonym ('preform, 'var) vertex = "('preform \<times> ('preform, 'var) in_port list option)"
+type_synonym ('preform, 'var) edge'' = "(('preform, 'var) vertex, 'preform, 'var) edge'"
+
 
 locale Solved_Task =
   Abstract_Task freshen pre_fv fv subst ran_fv closed anyP antecedent consequent rules assumptions conclusions
@@ -258,24 +289,192 @@ lemma
 
 abbreviation to_form :: "'preform \<Rightarrow> 'form" where
   "to_form pf \<equiv> subst undefined (freshen undefined pf)"
-  
+
+lemma to_form_conc_forms[simp]: "to_form a |\<in>| conc_forms \<longleftrightarrow> a \<in> set conclusions"
+  sorry
+
+abbreviation it where
+  "it c \<equiv> to_it (ts (to_form c))"
 
 definition vertices :: "('preform, 'var) vertex fset"  where
-  "vertices = Abs_fset (Union ( set (map (\<lambda> c. insert (c, None) ((\<lambda> p. (c, Some p)) ` (it_paths (to_it (ts (to_form c))))))  conclusions)))"
+  "vertices = Abs_fset (Union ( set (map (\<lambda> c. insert (c, None) ((\<lambda> p. (c, Some p)) ` (it_paths (it c))))  conclusions)))"
 
-lemma mem_vertices: "v |\<in>| vertices \<longleftrightarrow>  (fst v \<in> set conclusions \<and> (snd v = None \<or> snd v \<in> Some ` it_paths (to_it (ts (to_form (fst v))))))"
+lemma mem_vertices: "v |\<in>| vertices \<longleftrightarrow>  (fst v \<in> set conclusions \<and> (snd v = None \<or> snd v \<in> Some ` it_paths (it (fst v))))"
   unfolding vertices_def fmember.rep_eq ffUnion.rep_eq 
   by (cases v) (auto simp add: Abs_fset_inverse Bex_def)
+
+lemma none_vertices[simp]: "(c, None) |\<in>| vertices \<longleftrightarrow> c \<in> set conclusions"
+  by (simp add: mem_vertices)
+
+lemma some_vertices[simp]: "(c, Some is) |\<in>| vertices \<longleftrightarrow> c \<in> set conclusions \<and> is \<in> it_paths (it c)"
+  by (auto simp add: mem_vertices)
+
+lemma vertices_cases[consumes 1, case_names None Some]:
+  assumes "v |\<in>| vertices"
+  obtains c where "c \<in> set conclusions" and "v = (c, None)"
+      |   c "is" where "c \<in> set conclusions" and "is \<in> it_paths (it c)" and "v = (c, Some is)"
+using assms by (cases v; rename_tac "is"; case_tac "is"; auto)
+
+lemma vertices_induct[consumes 1, case_names None Some]:
+  assumes "v |\<in>| vertices"
+  assumes "\<And> c. c \<in> set conclusions \<Longrightarrow> P (c, None)"
+  assumes "\<And> c is . c \<in> set conclusions \<Longrightarrow> is \<in> it_paths (it c)\<Longrightarrow> P (c, Some is)"
+  shows "P v"
+using assms by (cases v; rename_tac "is"; case_tac "is"; auto)
+
 
 definition preform_of_closed_form :: "'form \<Rightarrow> 'preform" where
   "preform_of_closed_form f = (SOME pf. subst undefined (freshen undefined pf) = f)"
 
 fun nodeOf :: "('preform, 'var) vertex \<Rightarrow> ('preform, 'rule) graph_node" where
   "nodeOf (pf, None) = Conclusion pf"
-| "nodeOf (pf, Some p) = iNodeOf (tree_at (to_it (ts (to_form pf))) p)"
+| "nodeOf (pf, Some p) = iNodeOf (tree_at (it pf) p)"
+
+lemma iNodeOf_tree_at:
+  "iwf' t ent \<Longrightarrow> x \<in> it_paths t \<Longrightarrow> iNodeOf (tree_at t x) \<in> sset nodes"
+  apply (induction arbitrary: x rule: iwf'.induct)
+  apply (case_tac x)
+  apply (auto elim!: it_paths_ConsE)
+  apply force
+  done
+
+definition edge_from :: "'preform \<Rightarrow> ('preform, 'var) in_port list => (('preform, 'var) vertex \<times> ('preform,'var) out_port)" where 
+  "edge_from c is = ((c, Some is),  Reg (iOutPort (tree_at (it c) is)))"
+
+lemma fst_edge_from[simp]: "fst (edge_from c is) = (c, Some is)"
+  by (simp add: edge_from_def)
+
+definition edge_to :: "'preform \<Rightarrow> ('preform, 'var) in_port list => (('preform, 'var) vertex \<times> ('preform,'var) in_port)"  where
+ "edge_to c is = (case rev is of [] \<Rightarrow> ((c, None), plain_ant c) | i#is \<Rightarrow> ((c, Some (rev is)), i))"
+
+lemma edge_to_Nil[simp]: "edge_to c [] = ((c, None), plain_ant c)"
+  by (simp add: edge_to_def)
+
+lemma edge_to_Snoc[simp]: "edge_to c (is@[i]) = ((c, Some is), i)"
+  by (simp add: edge_to_def)
+
+definition edge_at :: "'preform \<Rightarrow> ('preform, 'var) in_port list => ('preform, 'var) edge''"  where
+   "edge_at c i = (edge_from c i, edge_to c i)"
+
+lemma fst_edge_at[simp]: "fst (edge_at c i) = edge_from c i" by (simp add: edge_at_def)
+lemma snd_edge_at[simp]: "snd (edge_at c i) = edge_to c i" by (simp add: edge_at_def)
+
+inductive_set edges where
+  regular_edge: "c \<in> set conclusions \<Longrightarrow> p \<in> it_paths (it c) \<Longrightarrow> edge_at c p \<in> edges"
+
+sublocale Pre_Port_Graph nodes inPorts outPorts vertices nodeOf edges.
+
+lemma iwf'_outPort: 
+  assumes "iwf' t ent"
+  assumes "x \<in> it_paths t"
+  shows "Reg (iOutPort (tree_at t x)) |\<in>| outPorts (iNodeOf (tree_at t x))"
+using assms
+  apply (induction arbitrary: x rule: iwf'.induct)
+  apply (case_tac x)
+  apply (auto elim!: it_paths_ConsE)
+  apply force
+  done
+
+lemma edge_from_valid_out_port:
+  assumes "p \<in> it_paths (it c)"
+  assumes "c \<in> set conclusions"
+  shows "valid_out_port (edge_from c p)"
+using assms
+by (auto simp add: edge_from_def intro!: iwf'_outPort iwf'_to_it[OF ts_finite ts_wf])
+
+lemma edge_to_valid_in_port:
+  assumes "p \<in> it_paths (it c)"
+  assumes "c \<in> set conclusions"
+  shows "valid_in_port (edge_to c p)"
+using assms
+by (auto simp add: edge_to_def split: list.split elim!: it_path_SnocE)
+
+inductive scope' where
+  "c \<in> set conclusions \<Longrightarrow> is \<in> it_paths (it c)         \<Longrightarrow> scope' (c, None)    (plain_ant c) (c, Some is)"
+| "c \<in> set conclusions \<Longrightarrow> is@[i]@is' \<in> it_paths (it c) \<Longrightarrow> scope' (c, Some is) i (c, Some (is@[i]@is'))"
+
+fun terminal_path_from :: "'preform \<Rightarrow> ('preform, 'var) in_port list => ('preform, 'var) edge'' list" where
+   "terminal_path_from c [] = [edge_at c []]"
+ | "terminal_path_from c is = edge_at c is # terminal_path_from c (butlast is)"
+
+lemma terminal_path_from_Snoc[simp]:
+  "terminal_path_from c (is @ [i]) = edge_at c (is@[i]) # terminal_path_from c is"
+  by (metis Nil_is_append_conv butlast_snoc not_Cons_self2 terminal_path_from.elims)
+
+lemma path_terminal_path_from: "c \<in> set conclusions \<Longrightarrow> is \<in> it_paths (it c) \<Longrightarrow> path (c, Some is) (c, None) (terminal_path_from c is)"
+by (induction "is" rule: rev_induct)
+   (auto simp add: path_cons_simp intro!: regular_edge elim: it_path_SnocE)
+
+lemma in_scope: "valid_in_port (v', p') \<Longrightarrow>v \<in> scope (v', p') \<longleftrightarrow> scope' v' p' v"
+proof
+  assume "v \<in> scope (v', p')"
+  hence "v |\<in>| vertices" and "\<And> pth t.  path v t pth \<Longrightarrow> terminal_vertex t \<Longrightarrow> (v', p') \<in> snd ` set pth"
+    by (auto simp add: scope.simps)
+  from this
+  show "scope' v' p' v"
+  proof (induction  rule: vertices_induct)
+    case (None c)
+    from None(2)[of "(c, None)" "[]", simplified]
+    show "scope' v' p' (c, None)"..
+  next
+    case (Some c "is")
+
+    from `c \<in> set conclusions` `is \<in> it_paths (it c)`
+    have "path (c, Some is) (c, None) (terminal_path_from c is)"
+      by (rule path_terminal_path_from)
+    moreover
+    have "terminal_vertex (c, None)" by simp
+    ultimately
+    have "(v', p') \<in> snd ` set (terminal_path_from c is)"
+      by (rule Some(3))
+    then obtain is' is'' where "is = is'@is''" and "(v', p') = edge_to c is'"
+    apply (atomize_elim)
+    apply (induction "is" rule: rev_induct)
+    apply auto
+    apply (metis append_Nil2 edge_to_Snoc)
+    oops
+     
+
+    
+    
+    
+  
+  
 
 sublocale Tasked_Proof_Graph freshen fv ran_fv closed anyP subst pre_fv antecedent consequent fresh_vars rules assumptions conclusions
-  vertices nodeOf
-  sorry
+  vertices nodeOf edges
+proof
+  show "nodeOf ` fset vertices \<subseteq> sset nodes"
+    apply (auto simp add: fmember.rep_eq[symmetric] mem_vertices)
+    apply (auto simp add: nodes_def stream.set_map dest: iNodeOf_tree_at[OF iwf'_to_it, OF ts_finite ts_wf, rotated 2])
+    done
+  next
+
+  have "\<forall> e \<in> edges. valid_out_port (fst e) \<and> valid_in_port (snd e)"
+    by (auto elim!: edges.cases simp add: edge_at_def dest: edge_from_valid_out_port edge_to_valid_in_port)
+  thus "\<forall>(ps1, ps2)\<in>edges. valid_out_port ps1 \<and> valid_in_port ps2" by auto
+  next
+
+  fix v\<^sub>1 p\<^sub>1 v\<^sub>2 p\<^sub>2 p'
+  assume "((v\<^sub>1, p\<^sub>1), (v\<^sub>2, p\<^sub>2)) \<in> edges"
+  assume "hyps (nodeOf v\<^sub>1) p\<^sub>1 = Some p'"
+  show "(v\<^sub>2, p\<^sub>2) = (v\<^sub>1, p') \<or> v\<^sub>2 \<in> scope (v\<^sub>1, p')"
+    sorry
+  next
+
+  show "set (map Conclusion conclusions) \<subseteq> nodeOf ` fset vertices"
+  proof-
+  {
+    fix c
+    assume "c \<in> set conclusions"
+    hence "(c, None) |\<in>| vertices" by (simp add: mem_vertices)
+    hence "nodeOf (c, None) \<in> nodeOf ` fset vertices"
+      unfolding fmember.rep_eq by (rule imageI)
+    hence "Conclusion c \<in> nodeOf ` fset vertices"  by simp
+  } thus ?thesis by auto
+  qed
+  
+oops
+    
 
 end

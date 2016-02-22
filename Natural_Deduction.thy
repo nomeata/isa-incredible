@@ -49,7 +49,7 @@ begin
   inductive eff :: "'rule NatRule \<Rightarrow> 'form entailment \<Rightarrow> 'form entailment fset \<Rightarrow> bool" where
     "con |\<in>| \<Gamma>
     \<Longrightarrow> eff Axiom (\<Gamma> \<turnstile> con) {||}"
-   |"nat_rule r c ants
+   |"nat_rule rule c ants
     \<Longrightarrow> (\<And> ant f. ant |\<in>| ants \<Longrightarrow> f |\<in>| \<Gamma> \<Longrightarrow> freshenV a ` (a_fresh ant) \<inter> fv f = {})
     \<Longrightarrow> (\<And> ant. ant |\<in>| ants \<Longrightarrow> freshenV a ` (a_fresh ant) \<inter> ran_fv s = {})
     \<Longrightarrow> eff (NatRule rule)
