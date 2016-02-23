@@ -14,16 +14,33 @@ locale Port_Graph_Signature =
 
 type_synonym ('v, 'outPort, 'inPort) edge = "(('v \<times> 'outPort) \<times> ('v \<times> 'inPort))"
 
-locale Pre_Port_Graph =
-  Port_Graph_Signature
-  _ inPorts outPorts for inPorts :: "'node \<Rightarrow> 'inPort fset" and outPorts :: "'node \<Rightarrow> 'outPort fset"  +
+locale Vertex_Graph = 
+  Port_Graph_Signature nodes inPorts outPorts
+    for nodes :: "'node stream"
+    and inPorts :: "'node \<Rightarrow> 'inPort fset"
+    and outPorts :: "'node \<Rightarrow> 'outPort fset" +
   fixes vertices :: "'v fset"
   fixes nodeOf :: "'v \<Rightarrow> 'node"
-  fixes edges :: "('v, 'outPort, 'inPort) edge set"
 begin
   fun valid_out_port where "valid_out_port (v,p) \<longleftrightarrow> v |\<in>| vertices \<and> p |\<in>| outPorts (nodeOf v)"
   fun valid_in_port  where "valid_in_port (v,p) \<longleftrightarrow> v |\<in>| vertices \<and> p |\<in>| inPorts (nodeOf v)" 
 
+  fun terminal_node where
+    "terminal_node n \<longleftrightarrow> outPorts n = {||}"
+  fun terminal_vertex where
+    "terminal_vertex v \<longleftrightarrow> v |\<in>| vertices \<and> terminal_node (nodeOf v)"
+
+end
+
+locale Pre_Port_Graph =
+  Vertex_Graph nodes inPorts outPorts vertices nodeOf
+    for nodes :: "'node stream"
+    and inPorts :: "'node \<Rightarrow> 'inPort fset"
+    and outPorts :: "'node \<Rightarrow> 'outPort fset"
+    and vertices :: "'v fset"
+    and nodeOf :: "'v \<Rightarrow> 'node" +
+  fixes edges :: "('v, 'outPort, 'inPort) edge set"
+begin
   fun edge_begin :: "(('v \<times> 'outPort) \<times> ('v \<times> 'inPort)) \<Rightarrow> 'v" where
     "edge_begin ((v1,p1),(v2,p2)) = v1"
   fun edge_end :: "(('v \<times> 'outPort) \<times> ('v \<times> 'inPort)) \<Rightarrow> 'v" where
@@ -52,13 +69,6 @@ begin
 
   lemma path_snoc: "path v v' (pth1@[e]) \<longleftrightarrow> e \<in> edges \<and> path v (edge_begin e) pth1 \<and> edge_end e = v'"
     by (auto simp add: path_split2 path_cons_simp edge_end_tup edge_begin_tup)
-
-
-
-  fun terminal_node where
-    "terminal_node n \<longleftrightarrow> outPorts n = {||}"
-  fun terminal_vertex where
-    "terminal_vertex v \<longleftrightarrow> v |\<in>| vertices \<and> terminal_node (nodeOf v)"
 
   inductive_set scope for ps where
     "v |\<in>| vertices \<Longrightarrow> (\<And> pth v'.  path v v' pth \<Longrightarrow> terminal_vertex v' \<Longrightarrow> ps \<in> snd ` set pth)
@@ -128,13 +138,13 @@ begin
   lemma snd_set_path_verties: "path v v' pth \<Longrightarrow> fst ` snd ` set pth \<subseteq> fset vertices"
     apply (induction rule: path.induct)
     apply auto
-    apply (metis Pre_Port_Graph.valid_in_port.elims(2) edge_end.simps notin_fset case_prodD valid_edges)
+    apply (metis valid_in_port.elims(2) edge_end.simps notin_fset case_prodD valid_edges)
     done
 
   lemma fst_set_path_verties: "path v v' pth \<Longrightarrow> fst ` fst ` set pth \<subseteq> fset vertices"
     apply (induction rule: path.induct)
     apply auto
-    apply (metis Pre_Port_Graph.valid_out_port.elims(2) edge_begin.simps notin_fset case_prodD valid_edges)
+    apply (metis valid_out_port.elims(2) edge_begin.simps notin_fset case_prodD valid_edges)
     done
 end
 
@@ -261,6 +271,8 @@ begin
     by transfer (simp add: hyps_for'.simps)
   lemma hyps_for_simp'[simp]: "h \<in> fset (hyps_for n p) \<longleftrightarrow> hyps n h = Some p"
     by transfer (simp add: hyps_for'.simps)
+  lemma hyps_for_collect: "fset (hyps_for n p) = {h . hyps n h = Some p}"
+    by auto
   end
   lemma hyps_for_subset: "hyps_for n p |\<subseteq>| outPorts n"
     using hyps_for'_subset
@@ -431,7 +443,7 @@ locale Labeled_Signature =
   fixes labelsOut :: "'node \<Rightarrow> 'outPort \<Rightarrow> 'preform" 
 
 locale Instantiation =
-  Port_Graph nodes _ _ vertices _ edges +
+  Vertex_Graph nodes _ _ vertices _ +
   Labeled_Signature nodes  _ _ _ labelsIn labelsOut +
   Abstract_Formulas freshen pre_fv _ subst
   for nodes :: "'node stream" and edges :: "('vertex, 'outPort, 'inPort) edge set" and vertices :: "'vertex fset" and labelsIn :: "'node \<Rightarrow> 'inPort \<Rightarrow> 'preform" and labelsOut :: "'node \<Rightarrow> 'outPort \<Rightarrow> 'preform" 
@@ -459,6 +471,7 @@ locale Port_Graph_Signature_Scoped_Vars =
   fixes local_vars :: "'node \<Rightarrow> 'inPort \<Rightarrow> 'var set"
 
 locale Well_Scoped_Instantiation =
+   Pre_Port_Graph  nodes inPorts outPorts vertices nodeOf edges +
    Instantiation  inPorts outPorts nodeOf hyps fv ran_fv closed anyP nodes edges vertices labelsIn labelsOut pre_fv subst freshen inst +
    Port_Graph_Signature_Scoped_Vars fv ran_fv closed anyP nodes  inPorts outPorts pre_fv subst freshen local_vars
    for inPorts :: "'node \<Rightarrow> 'inPort fset" 
@@ -487,6 +500,7 @@ end
   
 
 locale Scoped_Proof_Graph =
+  Instantiation  inPorts outPorts nodeOf hyps fv ran_fv closed anyP nodes edges vertices labelsIn labelsOut pre_fv subst freshen inst  +
   Well_Shaped_Graph  nodes inPorts outPorts vertices nodeOf edges hyps  +
   Solution inPorts outPorts nodeOf hyps fv ran_fv closed anyP nodes vertices labelsIn labelsOut pre_fv subst freshen inst edges +
   Well_Scoped_Instantiation inPorts outPorts nodeOf hyps fv ran_fv closed anyP nodes vertices labelsIn labelsOut pre_fv subst freshen inst edges local_vars

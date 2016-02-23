@@ -32,21 +32,22 @@ datatype ('preform,'rule,'subst,'var)  itree =
           (iAnnot: "nat")
           (iSubst: "'subst")
           (iAnts': "('preform, 'var) in_port \<rightharpoonup> ('preform,'rule,'subst,'var) itree")
-  | HNode
+  | HNode (iAnnot: "nat")
+          (iSubst: "'subst")
 
 fun iAnts where
    "iAnts (INode n p i s ants) = ants"
- | "iAnts HNode = empty"
+ | "iAnts (HNode i s) = empty"
 
 fun iNodeOf where
    "iNodeOf (INode n p i s ants) = n"
- | "iNodeOf HNode = Helper"
+ | "iNodeOf (HNode i s) = Helper"
 
 context Abstract_Formulas
 begin
 fun iOutPort where
    "iOutPort (INode n p i s ants) = p"
- | "iOutPort HNode = anyP"
+ | "iOutPort (HNode i s) = anyP"
 end
 
 context Abstract_Task
@@ -63,9 +64,10 @@ begin
        c = subst s (freshen i (labelsOut n (Reg p :: (('preform, 'var) out_port))))
       \<rbrakk> \<Longrightarrow> iwf (INode n p i s ants) (\<Gamma> \<turnstile> c)"  
   | iwfH: "\<lbrakk>
-       c |\<notin>| ass_form;
-       c |\<in>| \<Gamma>
-      \<rbrakk> \<Longrightarrow> iwf HNode (\<Gamma> \<turnstile> c)"  
+       c |\<notin>| ass_forms;
+       c |\<in>| \<Gamma>;
+       c = subst s (freshen i anyP)
+      \<rbrakk> \<Longrightarrow> iwf (HNode i s) (\<Gamma> \<turnstile> c)"  
 
 
 lemma build_iwf:
@@ -85,8 +87,7 @@ proof(induction)
   from `wf t`
   have "\<And> t'. t' |\<in>| cont t \<Longrightarrow> wf t'" using wf.simps by blast
   hence IH: "\<And> \<Gamma>' t'. t' |\<in>| cont t \<Longrightarrow> (\<exists>it'. iwf it' (fst (root t')))" using tfinite(2) by blast
-  then obtain its where its: "\<And> t'. t' |\<in>| cont t \<Longrightarrow> iwf (its t') (fst (root t'))"
-    by metis
+  then obtain its where its: "\<And> t'. t' |\<in>| cont t \<Longrightarrow> iwf (its t') (fst (root t'))" by metis
 
   from `eff _ _ _`
   show ?case
@@ -108,7 +109,7 @@ proof(induction)
       case False
       obtain s where [simp]: "subst s (freshen undefined anyP) = con" by atomize_elim (rule anyP_is_any)
   
-      let "?it" = "HNode ::  ('preform, 'rule, 'subst, 'var) itree"
+      let "?it" = "HNode undefined s ::  ('preform, 'rule, 'subst, 'var) itree"
   
       from  `con |\<in>| \<Gamma>` False
       have "iwf ?it (\<Gamma> \<turnstile> con)" by (auto intro: iwfH)
@@ -201,9 +202,10 @@ unfolding to_it_def using build_iwf[OF assms] by (rule someI2_ex)
        c = subst s (freshen i (labelsOut n (Reg p :: (('preform, 'var) out_port))))
       \<rbrakk> \<Longrightarrow> iwf' (INode n p i s ants) (\<Gamma> \<turnstile> c)"  
   | iwf'H: "\<lbrakk>
-       c |\<notin>| ass_form;
-       c |\<in>| \<Gamma>
-      \<rbrakk> \<Longrightarrow> iwf' HNode (\<Gamma> \<turnstile> c)"  
+       c |\<notin>| ass_forms;
+       c |\<in>| \<Gamma>;
+       c = subst s (freshen i anyP)
+      \<rbrakk> \<Longrightarrow> iwf' (HNode i s) (\<Gamma> \<turnstile> c)"  
 
 
 lemma iwf'_to_it:
@@ -232,7 +234,7 @@ definition it_paths:: "('preform,'rule,'subst,'var) itree \<Rightarrow> ('prefor
 
  lemma [simp]: "[] \<in> it_paths t" by (rule it_paths_intros)
 
-lemma it_paths_HNode[simp]: "it_paths HNode = {[]}"
+lemma it_paths_HNode[simp]: "it_paths (HNode i s) = {[]}"
   by (auto elim: it_paths_cases)
 
 lemma it_paths_Union: "it_paths t \<subseteq> insert [] (Union (fset ((\<lambda> i. case iAnts t i of Some t \<Rightarrow> (op # i) ` it_paths t | None \<Rightarrow> {}) |`| (inPorts (iNodeOf t)))))"
@@ -305,6 +307,11 @@ lemma to_form_conc_forms[simp]: "to_form a |\<in>| conc_forms \<longleftrightarr
 abbreviation it where
   "it c \<equiv> to_it (ts (to_form c))"
 
+lemma iwf'_it:
+  assumes "c \<in> set conclusions"
+  shows "iwf' (it c)  (fst (root (ts (to_form c))))"
+  using assms by (auto intro!: iwf'_to_it ts_finite ts_wf)
+
 definition vertices :: "('preform, 'var) vertex fset"  where
   "vertices = Abs_fset (Union ( set (map (\<lambda> c. insert (c, []) ((\<lambda> p. (c, plain_ant c # p)) ` (it_paths (it c))))  conclusions)))"
 
@@ -339,6 +346,10 @@ fun nodeOf :: "('preform, 'var) vertex \<Rightarrow> ('preform, 'rule) graph_nod
   "nodeOf (pf, []) = Conclusion pf"
 | "nodeOf (pf, i#is) = iNodeOf (tree_at (it pf) is)"
 
+fun inst where
+  "inst (c,[]) = undefined"
+ |"inst (c, i#is) = iSubst (tree_at (it c) is)" 
+
 
 lemma iNodeOf_outPorts:
   "iwf' t ent \<Longrightarrow> x \<in> it_paths t \<Longrightarrow> outPorts (iNodeOf (tree_at t x)) = {||} \<Longrightarrow> False"
@@ -348,13 +359,11 @@ lemma iNodeOf_outPorts:
   apply force
   done
 
-
 lemma terminal_is_nil[simp]: "v |\<in>| vertices \<Longrightarrow> outPorts (nodeOf v) = {||} \<longleftrightarrow> snd v = []"
  apply (induction v rule: nodeOf.induct)
  apply auto
  apply (erule (1) iNodeOf_outPorts[rotated])
- apply (rule iwf'_to_it[OF ts_finite ts_wf])
- apply auto
+ apply (erule iwf'_it)
  done
 
 lemma iNodeOf_tree_at:
@@ -364,6 +373,9 @@ lemma iNodeOf_tree_at:
   apply (auto elim!: it_paths_ConsE)
   apply force
   done
+
+sublocale Vertex_Graph nodes inPorts outPorts vertices nodeOf.
+
 
 definition edge_from :: "'preform \<Rightarrow> ('preform, 'var) in_port list => (('preform, 'var) vertex \<times> ('preform,'var) out_port)" where 
   "edge_from c is = ((c, plain_ant c # is),  Reg (iOutPort (tree_at (it c) is)))"
@@ -388,6 +400,146 @@ definition edge_at :: "'preform \<Rightarrow> ('preform, 'var) in_port list => (
 lemma fst_edge_at[simp]: "fst (edge_at c i) = edge_from c i" by (simp add: edge_at_def)
 lemma snd_edge_at[simp]: "snd (edge_at c i) = edge_to c i" by (simp add: edge_at_def)
 
+inductive_set hyps_along for t "is" where
+ "prefixeq (is'@[i]) is \<Longrightarrow>
+  hyps (iNodeOf (tree_at t is')) h = Some i \<Longrightarrow>
+  subst (iSubst  (tree_at t is')) (freshen (iAnnot (tree_at t is')) (labelsOut (iNodeOf (tree_at t is')) h)) \<in> hyps_along t is"
+
+lemma hyps_along_Nil[simp]: "hyps_along t [] = {}"
+  by (auto simp add: hyps_along.simps)
+
+lemma prefixeq_app_Cons_elim:
+  assumes "prefixeq (xs@[y]) (z#zs)"
+  obtains "xs = []" and "y = z"
+   | xs' where "xs = z#xs'" and "prefixeq (xs'@[y]) zs"
+using assms by (cases xs) auto
+
+lemma prefixeq_app_Cons_simp:
+  "prefixeq (xs@[y]) (z#zs) \<longleftrightarrow> (xs = [] \<and> y = z \<or> xs = z#tl xs \<and> prefixeq (tl xs@[y]) zs)"
+ by (cases xs) auto
+
+lemma hyps_along_Cons:
+  assumes "i#is \<in> it_paths t"
+  shows "hyps_along t (i#is) =
+    (\<lambda>h. subst (iSubst t) (freshen (iAnnot t) (labelsOut (iNodeOf t) h))) ` fset (hyps_for (iNodeOf t) i)
+    \<union> hyps_along (the (iAnts t i)) is" (is "?S1 = ?S2 \<union> ?S3")
+proof-
+  from assms
+  obtain t' where "i |\<in>| inPorts (iNodeOf t)" and [simp]: "iAnts t i = Some t'" and "is \<in> it_paths t'"
+    by (auto elim: it_paths_ConsE)
+
+  show ?thesis
+  proof (rule; rule)
+    fix x
+    assume "x \<in> hyps_along t (i # is)"
+    then obtain is' i' h where
+      "prefixeq (is'@[i']) (i#is)"
+      and "hyps (iNodeOf (tree_at t is')) h = Some i'"
+      and [simp]: "x = subst (iSubst  (tree_at t is')) (freshen (iAnnot (tree_at t is')) (labelsOut (iNodeOf (tree_at t is')) h))"
+    by (auto elim: hyps_along.cases)
+    from this(1)
+    show "x \<in> ?S2 \<union> ?S3"
+    proof(cases rule: prefixeq_app_Cons_elim)
+      assume "is' = []" and "i' = i"
+      with `hyps (iNodeOf (tree_at t is')) h = Some i'`
+      have "x \<in> ?S2" by auto
+      thus ?thesis..
+    next
+      fix is''
+      assume [simp]: "is' = i # is''" and "prefixeq (is'' @ [i']) is"
+
+      from `hyps (iNodeOf (tree_at t is')) h = Some i'`
+      have "hyps (iNodeOf (tree_at t' is'')) h = Some i'" by simp
+
+      from hyps_along.intros[OF `prefixeq (is'' @ [i']) is` this]
+      have "subst (iSubst (tree_at t' is'')) (freshen (iAnnot (tree_at t' is'')) (labelsOut (iNodeOf (tree_at t' is'')) h))  \<in> hyps_along t' is".
+      hence "x \<in> ?S3" by simp
+      thus ?thesis..
+    qed
+  next
+    fix x
+    assume "x \<in> ?S2 \<union> ?S3"
+    thus "x \<in> ?S1"
+    proof
+      have "prefixeq ([]@[i]) (i#is)" by simp
+      
+      assume "x \<in> ?S2"
+      then obtain h where "h |\<in>| hyps_for (iNodeOf t) i"
+        and [simp]: "x = subst (iSubst t) (freshen (iAnnot t) (labelsOut (iNodeOf t) h))" by auto
+      from this(1)
+      have "hyps (iNodeOf (tree_at t [])) h = Some i" by simp
+      
+      from hyps_along.intros[OF `prefixeq ([]@[i]) (i#is)` this]
+      show "x \<in> hyps_along t (i # is)" by simp
+    next
+      assume "x \<in> ?S3"
+      thus "x \<in> ?S1"
+        apply (auto simp add: hyps_along.simps)
+        apply (rule_tac x = "i#is'" in exI)
+        apply auto
+        done
+    qed
+  qed
+qed
+      
+    
+
+lemma hyps_exist:
+  assumes "c \<in> set conclusions"
+  assumes "is \<in> it_paths (it c)"
+  assumes "tree_at (it c) is = (HNode i s)"
+  shows "subst s (freshen i anyP) \<in> hyps_along (it c) is"
+proof-
+  from assms(1)
+  have "iwf' (it c) (fst (root (ts (to_form c))))" by (rule iwf'_it)
+  note this assms(2,3)
+  hence "subst s (freshen i anyP) \<in> hyps_along (it c) is 
+     \<or> subst s (freshen i anyP) |\<in>| fst (fst (root (ts (to_form c))))
+       \<and> subst s (freshen i anyP) |\<notin>| ass_forms"
+  proof(induction arbitrary: "is" rule: iwf'.induct)
+    case (iwf' n p ants s' i' \<Gamma> c "is")
+   
+    show ?case
+    proof(cases "is")
+      case Nil
+      with `tree_at (INode n p i' s' ants) is = HNode i s`
+      show ?thesis by auto
+    next
+      case (Cons ip "is'")
+      with `is \<in> it_paths (INode n p i' s' ants)`
+      obtain it where "ip |\<in>| inPorts n" and [simp]: "ants ip = Some it" and "is' \<in> it_paths it"
+        by (auto elim: it_paths_ConsE)
+
+      let ?\<Gamma>' = "(\<lambda>h. subst s' (freshen i' (labelsOut n h))) |`| hyps_for n ip"
+      
+      from `tree_at (INode n p i' s' ants) is = HNode i s`
+      have "tree_at it is' = HNode i s" using Cons `ants ip = Some it` by simp
+
+      from  iwf'.IH[OF `ip |\<in>| _`] `ants ip = Some it` `is' \<in> it_paths it` this
+      have  "subst s (freshen i anyP) \<in> hyps_along it is'
+        \<or> subst s (freshen i anyP) |\<in>| ?\<Gamma>' |\<union>| \<Gamma> \<and> subst s (freshen i anyP) |\<notin>| ass_forms"
+        by auto
+      moreover
+      from  `is \<in> it_paths (INode n p i' s' ants)`
+      have "hyps_along (INode n p i' s' ants) is = fset ?\<Gamma>' \<union> hyps_along it is'"
+        using `is = _` by (simp add: hyps_along_Cons)
+      ultimately
+      show ?thesis by auto
+    qed
+  next
+    case (iwf'H c  \<Gamma> s' i' "is")
+    hence [simp]: "is = []" "i' = i" "s' = s" by simp_all
+    from `c = subst s' (freshen i' anyP)` `c |\<in>| \<Gamma>` `c |\<notin>| ass_forms`
+    show ?case by simp
+  qed
+  moreover
+  have "fst (fst (root (ts (to_form c)))) |\<subseteq>| ass_forms"
+    by (simp add: assms(1) ts_context)
+  ultimately
+  show ?thesis by blast
+qed
+  
+
 inductive_set edges where
   regular_edge: "c \<in> set conclusions \<Longrightarrow> p \<in> it_paths (it c) \<Longrightarrow> edge_at c p \<in> edges"
 
@@ -409,7 +561,7 @@ lemma edge_from_valid_out_port:
   assumes "c \<in> set conclusions"
   shows "valid_out_port (edge_from c p)"
 using assms
-by (auto simp add: edge_from_def intro!: iwf'_outPort iwf'_to_it[OF ts_finite ts_wf])
+by (auto simp add: edge_from_def intro: iwf'_outPort iwf'_it)
 
 lemma edge_to_valid_in_port:
   assumes "p \<in> it_paths (it c)"
@@ -557,7 +709,7 @@ sublocale Port_Graph nodes inPorts outPorts vertices nodeOf edges
 proof
   show "nodeOf ` fset vertices \<subseteq> sset nodes"
     apply (auto simp add: fmember.rep_eq[symmetric] mem_vertices)
-    apply (auto simp add: stream.set_map dest: iNodeOf_tree_at[OF iwf'_to_it, OF ts_finite ts_wf, rotated 2])
+    apply (auto simp add: stream.set_map dest: iNodeOf_tree_at[OF iwf'_it])
     done
   next
 
@@ -566,6 +718,7 @@ proof
   thus "\<forall>(ps1, ps2)\<in>edges. valid_out_port ps1 \<and> valid_in_port ps2" by auto
 qed
   
+
 sublocale Scoped_Graph nodes inPorts outPorts vertices nodeOf edges hyps..
 
 lemma hyps_free_path_length:
@@ -576,8 +729,9 @@ using assms by induction (auto elim!: edge_step )
 
 sublocale Instantiation inPorts outPorts nodeOf hyps fv ran_fv closed anyP nodes edges vertices labelsIn labelsOut pre_fv subst freshen inst..
 
+
 sublocale Tasked_Proof_Graph freshen fv ran_fv closed anyP subst pre_fv antecedent consequent fresh_vars rules assumptions conclusions
-  vertices nodeOf edges
+  vertices nodeOf edges inst
 proof
   fix v\<^sub>1 p\<^sub>1 v\<^sub>2 p\<^sub>2 p'
   assume "((v\<^sub>1, p\<^sub>1), (v\<^sub>2, p\<^sub>2)) \<in> edges"
