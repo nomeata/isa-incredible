@@ -273,10 +273,7 @@ locale Scoped_Graph = Port_Graph + Port_Graph_Signature_Scoped
 locale Well_Scoped_Graph = Scoped_Graph +
   assumes well_scoped: "((v\<^sub>1,p\<^sub>1),(v\<^sub>2,p\<^sub>2)) \<in> edges \<Longrightarrow> hyps (nodeOf v\<^sub>1) p\<^sub>1 = Some p' \<Longrightarrow> (v\<^sub>2,p\<^sub>2) = (v\<^sub>1,p') \<or> v\<^sub>2 \<in> scope (v\<^sub>1,p')"
 
-locale Acyclic_Graph = Scoped_Graph +
-  assumes acyclic: "path v v pth \<Longrightarrow> pth = [] \<or> (\<exists> v\<^sub>1 p\<^sub>1 v\<^sub>2 p\<^sub>2. ((v\<^sub>1,p\<^sub>1),(v\<^sub>2,p\<^sub>2)) \<in> set pth \<and> hyps (nodeOf v\<^sub>1) p\<^sub>1 \<noteq> None)"
-
-context Acyclic_Graph
+context Scoped_Graph
 begin
 
 definition hyps_free where
@@ -286,10 +283,6 @@ lemma hyps_free_Nil[simp]: "hyps_free []" by (simp add: hyps_free_def)
 
 lemma hyps_free_Cons[simp]: "hyps_free (e#pth) \<longleftrightarrow> hyps_free pth \<and> hyps (nodeOf (fst (fst e))) (snd (fst e)) = None"
   by (auto simp add: hyps_free_def) (metis prod.collapse)
-
-
-lemma hyps_free_acyclic: "path v v pth \<Longrightarrow> hyps_free pth \<Longrightarrow> pth = []"
-  by (drule acyclic) (fastforce simp add: hyps_free_def)
 
 lemma path_vertices_shift:
   assumes "path v v' pth"
@@ -308,8 +301,7 @@ using assms by induction (auto simp add: path_cons_simp)
 lemma terminal_path_is_hyps_free:
   assumes "terminal_path v v' pth"
   shows "hyps_free pth"
-using assms
-  by induction (auto simp add: hyps_free_def)
+using assms by induction (auto simp add: hyps_free_def)
 
 lemma terminal_path_end_is_terminal:
   assumes "terminal_path v v' pth"
@@ -324,7 +316,11 @@ lemma terminal_pathI:
 using assms
 by induction (auto intro: terminal_path.intros)
 
+end
 
+locale Acyclic_Graph = Scoped_Graph +
+  assumes hyps_free_acyclic: "path v v pth \<Longrightarrow> hyps_free pth \<Longrightarrow> pth = []"
+begin
 lemma hyps_free_vertices_distinct:
   assumes "terminal_path v v' pth"
   shows "distinct (map fst (map fst pth)@[v'])"

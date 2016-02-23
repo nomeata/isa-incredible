@@ -422,6 +422,10 @@ lemma scope_valid:
   "scope' v i v' \<Longrightarrow> v' |\<in>| vertices"
 by (auto elim: scope_cases)
 
+lemma scope_valid_inport:
+  "valid_in_port (v, i) \<Longrightarrow> v' |\<in>| vertices \<Longrightarrow> scope' v i v' \<longleftrightarrow> fst v = fst v' \<and> prefixeq (snd v@[i]) (snd v')"
+by (cases v; cases v') (auto simp add: scope'.simps mem_vertices)
+
 fun inits where
   "inits [] = [[]]"
 | "inits (i#is) = [] # map (op # i) (inits is)"
@@ -539,12 +543,8 @@ next
   qed
   thus "v \<in> scope (v', p')" using `v =_` `v' = _` by simp
 qed
-    
-  
-  
 
-sublocale Tasked_Proof_Graph freshen fv ran_fv closed anyP subst pre_fv antecedent consequent fresh_vars rules assumptions conclusions
-  vertices nodeOf edges
+sublocale Port_Graph nodes inPorts outPorts vertices nodeOf edges
 proof
   show "nodeOf ` fset vertices \<subseteq> sset nodes"
     apply (auto simp add: fmember.rep_eq[symmetric] mem_vertices)
@@ -555,12 +555,70 @@ proof
   have "\<forall> e \<in> edges. valid_out_port (fst e) \<and> valid_in_port (snd e)"
     by (auto elim!: edges.cases simp add: edge_at_def dest: edge_from_valid_out_port edge_to_valid_in_port)
   thus "\<forall>(ps1, ps2)\<in>edges. valid_out_port ps1 \<and> valid_in_port ps2" by auto
-  next
+qed
+  
+sublocale Scoped_Graph nodes inPorts outPorts vertices nodeOf edges hyps..
 
+lemma hyps_free_path_length:
+  assumes "path v v' pth"
+  assumes "hyps_free pth"
+  shows "length pth + length (snd v') = length (snd v)"
+using assms by induction (auto elim!: edge_step )
+
+sublocale Instantiation inPorts outPorts nodeOf hyps fv ran_fv closed anyP nodes edges vertices labelsIn labelsOut pre_fv subst freshen inst..
+
+sublocale Tasked_Proof_Graph freshen fv ran_fv closed anyP subst pre_fv antecedent consequent fresh_vars rules assumptions conclusions
+  vertices nodeOf edges
+proof
   fix v\<^sub>1 p\<^sub>1 v\<^sub>2 p\<^sub>2 p'
   assume "((v\<^sub>1, p\<^sub>1), (v\<^sub>2, p\<^sub>2)) \<in> edges"
   assume "hyps (nodeOf v\<^sub>1) p\<^sub>1 = Some p'"
   show "(v\<^sub>2, p\<^sub>2) = (v\<^sub>1, p') \<or> v\<^sub>2 \<in> scope (v\<^sub>1, p')"
+    sorry
+  next
+
+  fix v pth
+  assume "path v v pth" and "hyps_free pth"
+  from hyps_free_path_length[OF this]
+  show "pth = []" by simp
+  next
+
+  fix v p
+  assume "valid_in_port (v, p)"
+  show "\<exists>e\<in>edges. snd e = (v, p)"
+    sorry
+  next
+  
+  fix v 
+  assume "v |\<in>| vertices"
+  thus "\<exists>pth v'. path v v' pth \<and> terminal_vertex v'"
+  proof(induct rule: vertices_induct)
+    case (None c)
+    hence "terminal_vertex (c,[])" by simp
+    with path.intros(1)
+    show ?case by blast
+  next
+    case (Some c "is")
+    hence "path (c, plain_ant c # is) (c, []) (terminal_path_from c is)"
+      by (rule path_terminal_path_from)
+    moreover
+    have "terminal_vertex (c,[])" using Some(1) by simp
+    ultimately
+    show ?case by blast
+  qed
+  next
+
+  fix v\<^sub>1 p\<^sub>1 v\<^sub>2 p\<^sub>2
+  assume "((v\<^sub>1, p\<^sub>1), (v\<^sub>2, p\<^sub>2)) \<in> edges"
+  show "labelAtOut v\<^sub>1 p\<^sub>1 = labelAtIn v\<^sub>2 p\<^sub>2"
+    sorry
+  next
+
+  fix v p var v'
+  assume "valid_in_port (v, p)"
+  assume "var \<in> local_vars (nodeOf v) p"
+  assume "freshenV (fidx vertices v) var \<in> ran_fv (inst v')"
+  show "v' \<in> scope (v, p)"
     sorry
   next
 
@@ -569,7 +627,7 @@ proof
   {
     fix c
     assume "c \<in> set conclusions"
-    hence "(c, []) |\<in>| vertices" by (simp add: mem_vertices)
+    hence "(c, []) |\<in>| vertices" by simp
     hence "nodeOf (c, []) \<in> nodeOf ` fset vertices"
       unfolding fmember.rep_eq by (rule imageI)
     hence "Conclusion c \<in> nodeOf ` fset vertices"  by simp
