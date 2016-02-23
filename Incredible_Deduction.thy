@@ -524,6 +524,15 @@ begin
   definition nodes :: "('preform, 'rule) graph_node stream" where
     "nodes = Helper ## shift (map Assumption assumptions) (shift (map Conclusion conclusions) (smap Rule rules))"
 
+  lemma Helper_in_nodes[simp]:
+    "Helper \<in> sset nodes" by (simp add: nodes_def)
+  lemma Assumption_in_nodes[simp]:
+    "Assumption a \<in> sset nodes \<longleftrightarrow> a \<in> set assumptions" by (auto simp add: nodes_def stream.set_map)
+  lemma Conclusion_in_nodes[simp]:
+    "Conclusion c \<in> sset nodes \<longleftrightarrow> c \<in> set conclusions" by (auto simp add: nodes_def stream.set_map)
+  lemma Rule_in_nodes[simp]:
+    "Rule r \<in> sset nodes \<longleftrightarrow> r \<in> sset rules" by (auto simp add: nodes_def stream.set_map)
+
   fun inPorts where
     "inPorts (Rule r) = f_antecedent r"
    |"inPorts (Assumption r) = {||}"

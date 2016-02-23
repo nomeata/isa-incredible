@@ -27,11 +27,27 @@ Tree-shape, but incredible-graph-like content (port names, explicit annotation a
 *}
 
 datatype ('preform,'rule,'subst,'var)  itree =
-    INode (iNodeOf: "('preform, 'rule) graph_node")
-          (iOutPort: "'preform reg_out_port")
+    INode (iNodeOf': "('preform, 'rule) graph_node")
+          (iOutPort': "'preform reg_out_port")
           (iAnnot: "nat")
           (iSubst: "'subst")
-          (iAnts: "('preform, 'var) in_port \<rightharpoonup> ('preform,'rule,'subst,'var) itree")
+          (iAnts': "('preform, 'var) in_port \<rightharpoonup> ('preform,'rule,'subst,'var) itree")
+  | HNode
+
+fun iAnts where
+   "iAnts (INode n p i s ants) = ants"
+ | "iAnts HNode = empty"
+
+fun iNodeOf where
+   "iNodeOf (INode n p i s ants) = n"
+ | "iNodeOf HNode = Helper"
+
+context Abstract_Formulas
+begin
+fun iOutPort where
+   "iOutPort (INode n p i s ants) = p"
+ | "iOutPort HNode = anyP"
+end
 
 context Abstract_Task
 begin
@@ -40,18 +56,16 @@ begin
        n \<in> sset nodes;
        Reg p |\<in>| outPorts n;
        \<And> ip. ip |\<in>| inPorts n \<Longrightarrow>
-          subst s (freshen i (labelsIn n ip)) |\<notin>| ass_forms \<and>
-          subst s (freshen i (labelsIn n ip)) |\<in>| (\<lambda> h . subst s (freshen i (labelsOut n h))) |`| hyps_for n ip |\<union>| \<Gamma> \<and>
-          ants ip = None \<or>
           (\<exists> t. ants ip = Some t \<and>
               iwf t ((\<lambda> h . subst s (freshen i (labelsOut n h))) |`| hyps_for n ip |\<union>| \<Gamma> \<turnstile> subst s (freshen i (labelsIn n ip))));
        \<And> ip. ip |\<in>| inPorts n  \<Longrightarrow> f |\<in>| \<Gamma> \<Longrightarrow> freshenV i ` (local_vars n ip) \<inter> fv f = {};
        \<And> ip. ip |\<in>| inPorts n  \<Longrightarrow> freshenV i ` (local_vars n ip) \<inter> ran_fv s = {};
        c = subst s (freshen i (labelsOut n (Reg p :: (('preform, 'var) out_port))))
       \<rbrakk> \<Longrightarrow> iwf (INode n p i s ants) (\<Gamma> \<turnstile> c)"  
-
-fun del_global_assn :: "'form entailment \<Rightarrow> 'form entailment" where
-  "del_global_assn (\<Gamma> \<turnstile> c) = (\<Gamma> |-| ass_forms \<turnstile> c)"
+  | iwfH: "\<lbrakk>
+       c |\<notin>| ass_form;
+       c |\<in>| \<Gamma>
+      \<rbrakk> \<Longrightarrow> iwf HNode (\<Gamma> \<turnstile> c)"  
 
 
 lemma build_iwf:
@@ -88,17 +102,16 @@ proof(induction)
       let "?it" = "INode (Assumption c) c undefined undefined empty ::  ('preform, 'rule, 'subst, 'var) itree"
 
       from `c \<in> set assumptions`
-      have "Assumption c \<in> sset nodes" by (simp add: nodes_def)
-      hence"iwf ?it (\<Gamma> \<turnstile> con)"  by (auto intro!: iwf)
+      have "iwf ?it (\<Gamma> \<turnstile> con)" by (auto intro!: iwf)
       thus ?thesis unfolding Axiom..
     next
       case False
       obtain s where [simp]: "subst s (freshen undefined anyP) = con" by atomize_elim (rule anyP_is_any)
   
-      let "?it" = "INode Helper anyP undefined s empty ::  ('preform, 'rule, 'subst, 'var) itree"
+      let "?it" = "HNode ::  ('preform, 'rule, 'subst, 'var) itree"
   
       from  `con |\<in>| \<Gamma>` False
-      have "iwf ?it (\<Gamma> \<turnstile> con)" by (auto intro!: iwf simp add: nodes_def)
+      have "iwf ?it (\<Gamma> \<turnstile> con)" by (auto intro: iwfH)
       thus ?thesis unfolding Axiom..
     qed
   next
@@ -120,7 +133,6 @@ proof(induction)
     have "fst rule \<in> sset rules"
       unfolding NatRule
       by (auto simp add: stream.set_map n_rules_def no_empty_conclusions )
-    hence "Rule (fst rule) \<in> sset nodes" by (auto simp add: nodes_def stream.set_map)
     moreover
     from `c \<in> set (consequent (fst rule))`
     have "c |\<in>| f_consequent (fst rule)" by (simp add: f_consequent_def)
@@ -160,10 +172,8 @@ proof(induction)
 
     let "?it" = "INode Helper anyP undefined s (empty(plain_ant anyP \<mapsto> it')) ::  ('preform, 'rule, 'subst, 'var) itree"
 
-    have "Helper \<in> i.R nodes" by (simp add: nodes_def)
-    with `iwf it' (\<Gamma> \<turnstile> con)`
-    have "iwf ?it (\<Gamma> \<turnstile> con)"
-      by (auto intro!: iwf)
+    from `iwf it' (\<Gamma> \<turnstile> con)`
+    have "iwf ?it (\<Gamma> \<turnstile> con)" by (auto intro!: iwf)
     thus ?thesis unfolding Cut..
   qed 
 qed
@@ -185,14 +195,16 @@ unfolding to_it_def using build_iwf[OF assms] by (rule someI2_ex)
        n \<in> sset nodes;
        Reg p |\<in>| outPorts n;
        \<And> ip. ip |\<in>| inPorts n \<Longrightarrow>
-          subst s (freshen i (labelsIn n ip)) |\<notin>| ass_forms \<and>
-          subst s (freshen i (labelsIn n ip)) |\<in>| (\<lambda> h . subst s (freshen i (labelsOut n h))) |`| hyps_for n ip |\<union>| \<Gamma> \<and>
-          ants ip = None \<or>
           (\<exists> t. ants ip = Some t \<and>
               iwf' t ((\<lambda> h . subst s (freshen i (labelsOut n h))) |`| hyps_for n ip |\<union>| \<Gamma> \<turnstile> subst s (freshen i (labelsIn n ip))));
        ran_fv s \<subseteq> fv_entailment (\<Gamma> \<turnstile> c) \<union> range (freshenV i);
        c = subst s (freshen i (labelsOut n (Reg p :: (('preform, 'var) out_port))))
       \<rbrakk> \<Longrightarrow> iwf' (INode n p i s ants) (\<Gamma> \<turnstile> c)"  
+  | iwf'H: "\<lbrakk>
+       c |\<notin>| ass_form;
+       c |\<in>| \<Gamma>
+      \<rbrakk> \<Longrightarrow> iwf' HNode (\<Gamma> \<turnstile> c)"  
+
 
 lemma iwf'_to_it:
   assumes "tfinite t" and "wf t"
@@ -220,7 +232,8 @@ definition it_paths:: "('preform,'rule,'subst,'var) itree \<Rightarrow> ('prefor
 
  lemma [simp]: "[] \<in> it_paths t" by (rule it_paths_intros)
 
-
+lemma it_paths_HNode[simp]: "it_paths HNode = {[]}"
+  by (auto elim: it_paths_cases)
 
 lemma it_paths_Union: "it_paths t \<subseteq> insert [] (Union (fset ((\<lambda> i. case iAnts t i of Some t \<Rightarrow> (op # i) ` it_paths t | None \<Rightarrow> {}) |`| (inPorts (iNodeOf t)))))"
   apply (rule)
@@ -229,11 +242,7 @@ lemma it_paths_Union: "it_paths t \<subseteq> insert [] (Union (fset ((\<lambda>
   done
 
 lemma finite_it_paths[simp]: "finite (it_paths t)"
-  apply (induction t)
-  apply (rule finite_subset[OF it_paths_Union])
-  apply (fastforce split: option.split intro: range_eqI)
-  done
-
+  by (induction t) (rule finite_subset[OF it_paths_Union], fastforce split: option.split intro: range_eqI)+
 end
 
 fun tree_at :: "('preform,'rule,'subst,'var) itree \<Rightarrow> ('preform, 'var) in_port list \<Rightarrow> ('preform,'rule,'subst,'var) itree" where
@@ -548,7 +557,7 @@ sublocale Port_Graph nodes inPorts outPorts vertices nodeOf edges
 proof
   show "nodeOf ` fset vertices \<subseteq> sset nodes"
     apply (auto simp add: fmember.rep_eq[symmetric] mem_vertices)
-    apply (auto simp add: nodes_def stream.set_map dest: iNodeOf_tree_at[OF iwf'_to_it, OF ts_finite ts_wf, rotated 2])
+    apply (auto simp add: stream.set_map dest: iNodeOf_tree_at[OF iwf'_to_it, OF ts_finite ts_wf, rotated 2])
     done
   next
 
