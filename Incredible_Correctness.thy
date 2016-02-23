@@ -522,7 +522,7 @@ proof(intro ballI allI conjI impI)
   have "valid_in_port (v, (plain_ant pf))"
     using `v |\<in>| vertices` `nodeOf _ = _ `  by simp
 
-  have "terminal_vertex v" using `nodeOf v = Conclusion pf` by auto
+  have "terminal_vertex v" using `v |\<in>| vertices` `nodeOf v = Conclusion pf` by auto
 
   let ?t = "tree v (plain_ant pf) []"
 

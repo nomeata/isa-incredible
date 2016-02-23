@@ -58,7 +58,7 @@ begin
   fun terminal_node where
     "terminal_node n \<longleftrightarrow> outPorts n = {||}"
   fun terminal_vertex where
-    "terminal_vertex v \<longleftrightarrow> terminal_node (nodeOf v)"
+    "terminal_vertex v \<longleftrightarrow> v |\<in>| vertices \<and> terminal_node (nodeOf v)"
 
   inductive_set scope for ps where
     "v |\<in>| vertices \<Longrightarrow> (\<And> pth v'.  path v v' pth \<Longrightarrow> terminal_vertex v' \<Longrightarrow> ps \<in> snd ` set pth)
