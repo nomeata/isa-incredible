@@ -258,6 +258,18 @@ lemma it_path_SnocE[elim_format]:
   shows "is \<in> it_paths t \<and> i |\<in>| inPorts (iNodeOf (tree_at t is))"
 using assms
 by (induction "is" arbitrary: t)(auto intro!: it_paths_intros elim!: it_paths_ConsE)
+
+lemma it_paths_prefix:
+  assumes "is \<in> it_paths t"
+  assumes "prefix is' is"
+  shows "is' \<in> it_paths t"
+proof-
+  from assms(2)
+  obtain is'' where "is = is' @ is''" using prefixE' by blast
+  from assms(1)[unfolded this]
+  show ?thesis
+    by(induction is' arbitrary: t) (auto elim!: it_paths_ConsE intro!: it_paths_intros)
+qed
 end
 
 
@@ -482,8 +494,6 @@ proof-
   qed
 qed
       
-    
-
 lemma hyps_exist:
   assumes "c \<in> set conclusions"
   assumes "is \<in> it_paths (it c)"
@@ -538,10 +548,73 @@ proof-
   ultimately
   show ?thesis by blast
 qed
-  
+
+
+definition hyp_port_for' where
+  "hyp_port_for' t is f = (SOME x.
+   (case x of (is', i, h) \<Rightarrow> 
+      prefixeq (is' @ [i]) is \<and>
+      hyps (iNodeOf (tree_at t is')) h = Some i \<and>
+      f = subst (iSubst  (tree_at t is')) (freshen (iAnnot (tree_at t is')) (labelsOut (iNodeOf (tree_at t is')) h))
+   ))"
+
+lemma hyp_port_for_spec':
+  assumes "f \<in> hyps_along t is"
+  shows "(case hyp_port_for' t is f of (is', i, h) \<Rightarrow> 
+      prefixeq (is' @ [i]) is \<and>
+      hyps (iNodeOf (tree_at t is')) h = Some i \<and>
+      f = subst (iSubst  (tree_at t is')) (freshen (iAnnot (tree_at t is')) (labelsOut (iNodeOf (tree_at t is')) h)))"
+using assms unfolding hyps_along.simps hyp_port_for'_def by -(rule someI_ex, blast)
+
+definition hyp_port_path_for where "hyp_port_path_for t is f = fst (hyp_port_for' t is f)"
+definition hyp_port_i_for where "hyp_port_i_for t is f = fst (snd (hyp_port_for' t is f))"
+definition hyp_port_h_for where "hyp_port_h_for t is f = snd (snd (hyp_port_for' t is f))"
+
+lemma hyp_port_prefixeq:
+  assumes "f \<in> hyps_along t is"
+  shows "prefixeq (hyp_port_path_for t is f@[hyp_port_i_for t is f]) is"
+using hyp_port_for_spec'[OF assms] unfolding hyp_port_path_for_def hyp_port_i_for_def by auto
+
+lemma hyp_port_prefix:
+  assumes "f \<in> hyps_along t is"
+  shows "prefix (hyp_port_path_for t is f) is"
+using hyp_port_prefixeq[OF assms] by (simp add: prefixI' prefix_order.dual_order.strict_trans1)
+
+lemma hyp_port_hyps:
+  assumes "f \<in> hyps_along t is"
+  shows "hyps (iNodeOf (tree_at t (hyp_port_path_for t is f))) (hyp_port_h_for t is f) = Some (hyp_port_i_for t is f)"
+using hyp_port_for_spec'[OF assms] unfolding hyp_port_path_for_def hyp_port_i_for_def hyp_port_h_for_def by auto
+
+lemma hyp_port_outPort:
+  assumes "f \<in> hyps_along t is"
+  shows "(hyp_port_h_for t is f) |\<in>| outPorts (iNodeOf (tree_at t (hyp_port_path_for t is f)))"
+using hyps_correct[OF hyp_port_hyps[OF assms]]..
+
+lemma hyp_port_eq:
+  assumes "f \<in> hyps_along t is"
+  shows "f = subst (iSubst (tree_at t (hyp_port_path_for t is f))) (freshen (iAnnot (tree_at t (hyp_port_path_for t is f))) (labelsOut (iNodeOf (tree_at t (hyp_port_path_for t is f))) (hyp_port_h_for t is f)))"
+using hyp_port_for_spec'[OF assms] unfolding hyp_port_path_for_def hyp_port_i_for_def hyp_port_h_for_def by auto
+
+
+
+definition hyp_edge_to where
+  "hyp_edge_to c is = ((c, plain_ant c # is),  plain_ant anyP)"
+
+definition hyp_edge_from where
+  "hyp_edge_from c is n s = 
+    ((c, plain_ant c # hyp_port_path_for (it c) is (subst s (freshen n anyP))), hyp_port_h_for (it c) is (subst s (freshen n anyP)))"
+
+definition hyp_edge_at where
+  "hyp_edge_at c is n s = (hyp_edge_from c is n s, hyp_edge_to c is)"
+
+lemma fst_hyp_edge_at[simp]:
+  "fst (hyp_edge_at c is n s) = hyp_edge_from c is n s" by (simp add:hyp_edge_at_def) 
+lemma snd_hyp_edge_at[simp]:
+  "snd (hyp_edge_at c is n s) = hyp_edge_to c is" by (simp add:hyp_edge_at_def)
 
 inductive_set edges where
-  regular_edge: "c \<in> set conclusions \<Longrightarrow> p \<in> it_paths (it c) \<Longrightarrow> edge_at c p \<in> edges"
+  regular_edge: "c \<in> set conclusions \<Longrightarrow> is \<in> it_paths (it c) \<Longrightarrow> edge_at c is \<in> edges"
+  | hyp_edge: "c \<in> set conclusions \<Longrightarrow> is \<in> it_paths (it c) \<Longrightarrow> tree_at (it c) is = HNode n s \<Longrightarrow> hyp_edge_at c is n s \<in> edges"
 
 sublocale Pre_Port_Graph nodes inPorts outPorts vertices nodeOf edges.
 
@@ -569,6 +642,23 @@ lemma edge_to_valid_in_port:
   shows "valid_in_port (edge_to c p)"
 using assms
 by (auto simp add: edge_to_def split: list.split elim!: it_path_SnocE)
+
+lemma hyp_edge_from_valid_out_port:
+  assumes "is \<in> it_paths (it c)"
+  assumes "c \<in> set conclusions"
+  assumes "tree_at (it c) is = HNode n s"
+  shows "valid_out_port (hyp_edge_from c is n s)"
+using assms
+by(auto simp add: hyp_edge_from_def intro: hyp_port_outPort it_paths_prefix hyp_port_prefix  hyps_exist)
+
+lemma hyp_edge_to_valid_in_port:
+  assumes "is \<in> it_paths (it c)"
+  assumes "c \<in> set conclusions"
+  assumes "tree_at (it c) is = HNode n s"
+  shows "valid_in_port (hyp_edge_to c is)"
+using assms by (auto simp add: hyp_edge_to_def)
+
+
 
 inductive scope' where
   "c \<in> set conclusions \<Longrightarrow>
@@ -623,8 +713,12 @@ by (induction "is" rule: rev_induct)
 lemma edge_step:
   assumes "(((a, b), ba), ((aa, bb), bc)) \<in> edges"
   obtains "a = aa" and "b = bb@[bc]"
-using assms
-by (auto elim!: edges.cases simp add: edge_at_def edge_from_def edge_to_def split: list.split list.split_asm)
+  | "a = aa" and "prefix b bb"
+  using assms
+  apply (auto elim!: edges.cases simp add: edge_at_def edge_from_def edge_to_def split: list.split list.split_asm)
+  apply (auto simp add: hyp_edge_at_def hyp_edge_to_def hyp_edge_from_def)
+  apply (meson hyps_exist Solved_Task_axioms hyp_port_prefix)
+  done
 
 lemma path_has_prefixes:
   assumes "path v v' pth"
@@ -632,7 +726,7 @@ lemma path_has_prefixes:
   assumes "prefixeq (is' @ [i]) (snd v)"
   shows "((fst v, is'), i) \<in> snd ` set pth"
   using assms
-  by(induction rule: path.induct) (auto elim!: edge_step)
+  by (induction rule: path.induct)(auto elim!: edge_step)
 
 
 lemma in_scope: "valid_in_port (v', p') \<Longrightarrow> v \<in> scope (v', p') \<longleftrightarrow> scope' v' p' v"
@@ -714,7 +808,10 @@ proof
   next
 
   have "\<forall> e \<in> edges. valid_out_port (fst e) \<and> valid_in_port (snd e)"
-    by (auto elim!: edges.cases simp add: edge_at_def dest: edge_from_valid_out_port edge_to_valid_in_port)
+    by (auto elim!: edges.cases simp add: edge_at_def
+        dest: edge_from_valid_out_port edge_to_valid_in_port
+        dest: hyp_edge_from_valid_out_port hyp_edge_to_valid_in_port)
+    
   thus "\<forall>(ps1, ps2)\<in>edges. valid_out_port ps1 \<and> valid_in_port ps2" by auto
 qed
   
