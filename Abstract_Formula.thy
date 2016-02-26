@@ -69,8 +69,8 @@ locale Abstract_Task =
     and rules :: "'rule stream" +
   fixes assumptions :: "'preform list"
   fixes conclusions :: "'preform list"
-  assumes assumptions_closed: "\<forall>a \<in> set assumptions. closed a"
-  assumes conclusions_closed: "\<forall>c \<in> set conclusions. closed a"
+  assumes assumptions_closed: "\<And> a. a \<in> set assumptions \<Longrightarrow> closed a"
+  assumes conclusions_closed: "\<And> c. c \<in> set conclusions \<Longrightarrow> closed a"
   assumes no_empty_conclusions: "\<forall>xs\<in>sset rules. consequent xs \<noteq> []"
 begin
   definition ass_forms where "ass_forms = fset_from_list (map (subst undefined) (map (freshen undefined) assumptions))"

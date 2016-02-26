@@ -2,6 +2,9 @@ theory Incredible_Completeness
 imports Natural_Deduction Incredible_Deduction
 begin
 
+lemma prefixeq_snocD: "prefixeq (xs@[x]) ys \<Longrightarrow> prefix xs ys"
+  by (simp add: prefixI' prefix_order.dual_order.strict_trans1)
+
 lemma image_eq_to_f:
   assumes  "f1 ` S1 = f2 ` S2"
   obtains f where "\<And> x. x \<in> S2 \<Longrightarrow> f x \<in> S1 \<and> f1 (f x) = f2 x"
@@ -207,6 +210,12 @@ unfolding to_it_def using build_iwf[OF assms] by (rule someI2_ex)
        c = subst s (freshen i anyP)
       \<rbrakk> \<Longrightarrow> iwf' (HNode i s) (\<Gamma> \<turnstile> c)"  
 
+lemma iwf'_subst_freshen_outPort:
+  "iwf' ts ent \<Longrightarrow>
+  snd ent = subst (iSubst ts) (freshen (iAnnot ts) (iOutPort ts))"
+  by (auto elim: iwf'.cases)
+
+
 
 lemma iwf'_to_it:
   assumes "tfinite t" and "wf t"
@@ -258,6 +267,35 @@ lemma it_path_SnocE[elim_format]:
   shows "is \<in> it_paths t \<and> i |\<in>| inPorts (iNodeOf (tree_at t is))"
 using assms
 by (induction "is" arbitrary: t)(auto intro!: it_paths_intros elim!: it_paths_ConsE)
+
+fun isHNode where
+  "isHNode (HNode _ _) = True"
+ |"isHNode _ = False"
+
+lemma it_path_SnocI:
+  assumes "iwf' t ant"
+  assumes "is \<in> it_paths t" 
+  assumes "\<not> isHNode (tree_at t is)"
+  assumes "i |\<in>| inPorts (iNodeOf (tree_at t is))"
+  shows "is @ [i] \<in> it_paths t"
+  using assms
+  apply (induction arbitrary: "is" i)
+  apply auto
+  apply (case_tac "is")
+  apply (force intro: it_paths_intros elim!: it_paths_ConsE)+
+  done
+
+lemma iwf'_edge_match:
+  assumes "iwf' t ent"
+  assumes "is@[i] \<in> it_paths t"
+  shows "subst (iSubst (tree_at t (is@[i]))) (freshen (iAnnot (tree_at t (is@[i]))) (iOutPort (tree_at t (is@[i]))))
+     = subst (iSubst (tree_at t is)) (freshen (iAnnot (tree_at t is)) (a_conc i))"
+  using assms
+  apply (induction arbitrary: "is" i)
+  apply (case_tac "is")
+  apply (force elim!: it_paths_ConsE intro: trans[OF iwf'_subst_freshen_outPort[symmetric]])+
+  done
+
 
 lemma it_paths_prefix:
   assumes "is \<in> it_paths t"
@@ -712,13 +750,22 @@ by (induction "is" rule: rev_induct)
 
 lemma edge_step:
   assumes "(((a, b), ba), ((aa, bb), bc)) \<in> edges"
-  obtains "a = aa" and "b = bb@[bc]"
-  | "a = aa" and "prefix b bb"
-  using assms
-  apply (auto elim!: edges.cases simp add: edge_at_def edge_from_def edge_to_def split: list.split list.split_asm)
-  apply (auto simp add: hyp_edge_at_def hyp_edge_to_def hyp_edge_from_def)
-  apply (meson hyps_exist Solved_Task_axioms hyp_port_prefix)
-  done
+  obtains "a = aa" and "b = bb@[bc]" and "hyps (nodeOf (a, b)) ba = None"
+  | i where "a = aa" and "prefixeq (b@[i]) bb" and "hyps (nodeOf (a, b)) ba = Some i"
+using assms
+proof(cases rule: edges.cases[consumes 1, case_names Reg Hyp])
+  case (Reg c "is")
+  hence "a = aa" and "b = bb@[bc]" and "hyps (nodeOf (a, b)) ba = None"
+    by (auto elim!: edges.cases simp add: edge_at_def edge_from_def edge_to_def split: list.split list.split_asm)
+  thus thesis by (rule that)
+next
+  case (Hyp c "is" n s)
+  hence "a = aa" and "prefixeq (b@[hyp_port_i_for (it c) is (subst s (freshen n anyP))]) bb" and
+    "hyps (nodeOf (a, b)) ba = Some (hyp_port_i_for (it c) is (subst s (freshen n anyP)))"
+  by (auto simp add: edge_at_def edge_from_def edge_to_def hyp_edge_at_def hyp_edge_to_def hyp_edge_from_def
+      intro: hyp_port_prefixeq hyps_exist hyp_port_hyps)
+  thus thesis by (rule that)
+qed
 
 lemma path_has_prefixes:
   assumes "path v v' pth"
@@ -726,7 +773,7 @@ lemma path_has_prefixes:
   assumes "prefixeq (is' @ [i]) (snd v)"
   shows "((fst v, is'), i) \<in> snd ` set pth"
   using assms
-  by (induction rule: path.induct)(auto elim!: edge_step)
+  by (induction rule: path.induct)(auto elim!: edge_step dest: prefixeq_snocD)
 
 
 lemma in_scope: "valid_in_port (v', p') \<Longrightarrow> v \<in> scope (v', p') \<longleftrightarrow> scope' v' p' v"
@@ -826,15 +873,23 @@ using assms by induction (auto elim!: edge_step )
 
 sublocale Instantiation inPorts outPorts nodeOf hyps fv ran_fv closed anyP nodes edges vertices labelsIn labelsOut pre_fv subst freshen inst..
 
-
 sublocale Tasked_Proof_Graph freshen fv ran_fv closed anyP subst pre_fv antecedent consequent fresh_vars rules assumptions conclusions
   vertices nodeOf edges inst
 proof
   fix v\<^sub>1 p\<^sub>1 v\<^sub>2 p\<^sub>2 p'
-  assume "((v\<^sub>1, p\<^sub>1), (v\<^sub>2, p\<^sub>2)) \<in> edges"
-  assume "hyps (nodeOf v\<^sub>1) p\<^sub>1 = Some p'"
-  show "(v\<^sub>2, p\<^sub>2) = (v\<^sub>1, p') \<or> v\<^sub>2 \<in> scope (v\<^sub>1, p')"
-    sorry
+  assume assms: "((v\<^sub>1, p\<^sub>1), (v\<^sub>2, p\<^sub>2)) \<in> edges" "hyps (nodeOf v\<^sub>1) p\<^sub>1 = Some p'"
+  from assms(1) hyps_correct[OF assms(2)]
+  have "valid_out_port (v\<^sub>1, p\<^sub>1)" and "valid_in_port (v\<^sub>2, p\<^sub>2)" and "valid_in_port (v\<^sub>1, p')" and "v\<^sub>2 |\<in>| vertices"
+    using valid_edges by auto
+
+  from assms
+  have "fst v\<^sub>1 = fst v\<^sub>2 \<and> prefixeq (snd v\<^sub>1@[p']) (snd v\<^sub>2)"
+    by (cases v\<^sub>1; cases v\<^sub>2; auto elim!: edge_step)
+  hence "scope' v\<^sub>1 p' v\<^sub>2"
+    unfolding scope_valid_inport[OF `valid_in_port (v\<^sub>1, p')` `v\<^sub>2 |\<in>| vertices`].
+  hence "v\<^sub>2 \<in> scope (v\<^sub>1, p')"
+    unfolding in_scope[OF `valid_in_port (v\<^sub>1, p')`].
+  thus "(v\<^sub>2, p\<^sub>2) = (v\<^sub>1, p') \<or> v\<^sub>2 \<in> scope (v\<^sub>1, p')" ..
   next
 
   fix v pth
@@ -845,8 +900,59 @@ proof
 
   fix v p
   assume "valid_in_port (v, p)"
-  show "\<exists>e\<in>edges. snd e = (v, p)"
-    sorry
+  thus "\<exists>e\<in>edges. snd e = (v, p)"
+  proof(induction v)
+    fix c cis
+    assume "valid_in_port ((c, cis), p)"
+    hence "c \<in> set conclusions" by (auto simp add: mem_vertices)
+
+    show "\<exists>e\<in>edges. snd e = ((c, cis), p)"
+    proof(cases cis)
+      case Nil
+      with `valid_in_port ((c, cis), p)`
+      have [simp]: "p = plain_ant c" by simp
+
+      have "[] \<in> it_paths (it c)" by simp
+      with `c \<in> set conclusions`
+      have "edge_at c [] \<in> edges" by (rule regular_edge)
+      moreover
+      have "snd (edge_at c []) = ((c, []), plain_ant c)"
+        by (simp add: edge_to_def)
+      ultimately
+      show ?thesis by (auto simp add: Nil simp del: snd_edge_at)
+    next
+      case (Cons c' "is")
+      with `valid_in_port ((c, cis), p)`
+      have [simp]: "c' = plain_ant c" and "is \<in> it_paths (it c)"
+        and "p |\<in>| inPorts (iNodeOf (tree_at (it c) is))" by auto
+      show ?thesis
+      proof (cases "tree_at (it c) is")
+        case INode
+        hence "\<not> isHNode (tree_at (it c) is)" by simp
+        from iwf'_it[OF `c \<in> set conclusions`] `is \<in> it_paths (it c)` this `p |\<in>| inPorts (iNodeOf (tree_at (it c) is))`
+        have "is@[p] \<in> it_paths (it c)" by (rule it_path_SnocI)
+        from `c \<in> set conclusions` this
+        have "edge_at c (is@[p]) \<in> edges" by (rule regular_edge)
+        moreover
+        have "snd (edge_at c (is@[p])) = ((c, plain_ant c # is), p)"
+          by (simp add: edge_to_def)
+        ultimately
+        show ?thesis by (auto simp add: Cons simp del: snd_edge_at)
+      next
+        case (HNode n s)
+        from `c \<in> set conclusions` `is \<in> it_paths (it c)`  this
+        have "hyp_edge_at c is n s \<in> edges"..
+        moreover
+        from HNode `p |\<in>| inPorts (iNodeOf (tree_at (it c) is))`
+        have [simp]: "p = plain_ant anyP" by simp
+
+        have "snd (hyp_edge_at c is n s) = ((c, plain_ant c # is), p)"
+          by (simp add: hyp_edge_to_def)
+        ultimately
+        show ?thesis by (auto simp add: Cons simp del: snd_hyp_edge_at)
+      qed
+    qed
+   qed
   next
   
   fix v 
@@ -870,8 +976,62 @@ proof
 
   fix v\<^sub>1 p\<^sub>1 v\<^sub>2 p\<^sub>2
   assume "((v\<^sub>1, p\<^sub>1), (v\<^sub>2, p\<^sub>2)) \<in> edges"
-  show "labelAtOut v\<^sub>1 p\<^sub>1 = labelAtIn v\<^sub>2 p\<^sub>2"
-    sorry
+  thus "labelAtOut v\<^sub>1 p\<^sub>1 = labelAtIn v\<^sub>2 p\<^sub>2"
+  proof(cases)
+    case (regular_edge c "is")
+    show ?thesis
+    proof(cases "is" rule:rev_cases)
+      case Nil
+      let "?t'" = "it c"
+      have "labelAtOut v\<^sub>1 p\<^sub>1 = subst (iSubst ?t') (freshen (fidx vertices v\<^sub>1) (iOutPort ?t'))"
+        using regular_edge Nil by (simp add: labelAtOut_def edge_at_def edge_from_def)
+      also have "fidx vertices v\<^sub>1 = iAnnot ?t'" sorry
+      also have "subst (iSubst ?t') (freshen (iAnnot ?t') (iOutPort ?t')) = snd (fst (tree.root (ts (to_form c))))"
+        unfolding iwf'_subst_freshen_outPort[OF iwf'_it[OF `c \<in> set conclusions`]]..
+      also have "\<dots> = to_form c" using `c \<in> set conclusions` by (simp add: ts_conc)
+      also have "\<dots> = subst undefined (freshen (fidx vertices (c, [])) c)"
+        using  `c \<in> set conclusions` by (rule closed_eq[OF conclusions_closed])
+      also have "\<dots> = labelAtIn v\<^sub>2 p\<^sub>2"
+        using regular_edge Nil by (simp add: labelAtIn_def edge_at_def)
+      finally show ?thesis.
+    next
+      case (snoc is' i)
+      let "?t1" = "tree_at (it c) (is'@[i])"
+      let "?t2" = "tree_at (it c) is'"
+      have "labelAtOut v\<^sub>1 p\<^sub>1 = subst (iSubst ?t1) (freshen (fidx vertices v\<^sub>1) (iOutPort ?t1))"
+        using regular_edge snoc by (simp add: labelAtOut_def edge_at_def edge_from_def)
+      also have "fidx vertices v\<^sub>1 = iAnnot ?t1" sorry
+      also have "subst (iSubst ?t1) (freshen (iAnnot ?t1) (iOutPort ?t1)) = subst (iSubst ?t2) (freshen (iAnnot ?t2) (a_conc i))"
+        by (rule iwf'_edge_match[OF iwf'_it[OF `c \<in> set conclusions`] `is \<in> it_paths (it c)`[unfolded snoc]])
+      also have "iAnnot ?t2 = (fidx vertices (c, plain_ant c # is'))" sorry
+      also have "subst (iSubst ?t2) (freshen (fidx vertices (c, plain_ant c # is')) (a_conc i)) = labelAtIn v\<^sub>2 p\<^sub>2"
+        using regular_edge snoc by (simp add: labelAtIn_def edge_at_def)
+      finally show ?thesis.
+  qed
+  next
+    case (hyp_edge c "is" n s)
+    let ?f = "subst s (freshen n anyP)"
+    let ?h = "hyp_port_h_for (it c) is ?f"
+    let ?his = "hyp_port_path_for (it c) is ?f"
+    let "?t1" = "tree_at (it c) ?his"
+    let "?t2" = "tree_at (it c) is"
+
+    from `c \<in> set conclusions` `is \<in> it_paths (it c)` `tree_at (it c) is = HNode n s`
+    have "?f \<in> hyps_along (it c) is"
+      by (rule hyps_exist)
+
+    have "labelAtOut v\<^sub>1 p\<^sub>1 = subst (iSubst ?t1) (freshen (fidx vertices v\<^sub>1) (labelsOut (iNodeOf ?t1) ?h))"
+      using hyp_edge by (simp add: hyp_edge_at_def hyp_edge_from_def labelAtOut_def)
+    also have "\<dots> = subst (iSubst ?t1) (freshen (iAnnot ?t1) (labelsOut (iNodeOf ?t1) ?h))"
+      sorry
+    also have "\<dots> = ?f" using `?f \<in> hyps_along (it c) is` by (rule local.hyp_port_eq[symmetric])
+    also have "\<dots> = subst (iSubst ?t2) (freshen (iAnnot ?t2) anyP)"
+      using hyp_edge by simp
+    also have "iAnnot ?t2 = (fidx vertices (c, plain_ant c # is))" sorry
+    also have "subst (iSubst ?t2) (freshen (fidx vertices (c, plain_ant c # is)) anyP) = labelAtIn v\<^sub>2 p\<^sub>2"
+        using hyp_edge by (simp add: labelAtIn_def  hyp_edge_at_def hyp_edge_to_def)
+    finally show ?thesis.
+  qed
   next
 
   fix v p var v'

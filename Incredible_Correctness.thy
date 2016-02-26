@@ -239,7 +239,7 @@ case (wf v p pth)
         moreover
         from Assumption have "Assumption pf \<in> sset nodes" using valid_nodes by (auto simp add: fmember.rep_eq)
         hence "pf \<in> set assumptions" unfolding nodes_def by (auto simp add: stream.set_map)
-        hence "closed pf" using assumptions_closed by auto
+        hence "closed pf" by (rule assumptions_closed)
         ultimately
         have "fv f = {}" using closed_pre_fv subst_no_vars fv_freshen by blast
         thus ?thesis by simp
@@ -338,7 +338,7 @@ proof
   from this (1,2) valid_nodes
   have "Assumption pf \<in> sset nodes" by (auto simp add: fmember.rep_eq)
   hence "pf \<in> set assumptions" by (auto simp add: nodes_def stream.set_map)
-  hence "closed pf" using assumptions_closed by auto
+  hence "closed pf" by (rule  assumptions_closed)
   with `x = labelAtOut v (Reg pf)`
   have "x = subst undefined (freshen undefined pf)" by (auto simp add: closed_eq labelAtOut_def)
   thus "x |\<in>| ass_forms" using `pf \<in> set assumptions` by (auto simp add: ass_forms_def)
