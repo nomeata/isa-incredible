@@ -352,14 +352,22 @@ abbreviation to_form :: "'preform \<Rightarrow> 'form" where
   "to_form pf \<equiv> subst undefined (freshen undefined pf)"
 
 lemma to_form_conc_forms[simp]: "to_form a |\<in>| conc_forms \<longleftrightarrow> a \<in> set conclusions"
-  sorry
+proof
+  assume "a \<in> set conclusions"
+  thus "to_form a |\<in>| conc_forms" by (rule subst_freshen_in_conc_formsI)
+next
+  assume "to_form a |\<in>| conc_forms"
+  then obtain a' where "a' \<in> set conclusions" and "to_form a = to_form a'"
+    by (auto simp add: conc_forms_def)
+  thus "a \<in> set conclusions" using conclusions_closed closed_eq by metis
+qed
 
 abbreviation it where
   "it c \<equiv> to_it (ts (to_form c))"
 
 lemma iwf'_it:
   assumes "c \<in> set conclusions"
-  shows "iwf' (it c)  (fst (root (ts (to_form c))))"
+  shows "iwf' (it c) (fst (root (ts (to_form c))))"
   using assms by (auto intro!: iwf'_to_it ts_finite ts_wf)
 
 definition vertices :: "('preform, 'var) vertex fset"  where
@@ -990,7 +998,7 @@ proof
         unfolding iwf'_subst_freshen_outPort[OF iwf'_it[OF `c \<in> set conclusions`]]..
       also have "\<dots> = to_form c" using `c \<in> set conclusions` by (simp add: ts_conc)
       also have "\<dots> = subst undefined (freshen (fidx vertices (c, [])) c)"
-        using  `c \<in> set conclusions` by (rule closed_eq[OF conclusions_closed])
+        using  `c \<in> set conclusions` by (simp add: closed_eq[OF conclusions_closed])
       also have "\<dots> = labelAtIn v\<^sub>2 p\<^sub>2"
         using regular_edge Nil by (simp add: labelAtIn_def edge_at_def)
       finally show ?thesis.

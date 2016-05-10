@@ -20,7 +20,7 @@ locale Abstract_Formulas =
   assumes subst_no_vars: "pre_fv pf = {} \<Longrightarrow> fv (subst s f) = {}"
   assumes fv_subst: "fv (subst s f) \<subseteq> fv f \<union> ran_fv s"
   assumes closed_pre_fv: "closed pf \<Longrightarrow> pre_fv pf = {}"
-  assumes closed_eq: "closed pf \<Longrightarrow> subst s1 (freshen a1 pf) = subst s2 (freshen a2 pf)"
+  assumes closed_eq: "closed pf1 \<Longrightarrow> subst s1 (freshen a1 pf1) = subst s2 (freshen a2 pf2) \<longleftrightarrow> pf1 = pf2"
   assumes anyP_is_any: "\<exists> s. subst s (freshen a anyP) = f"
 begin
   definition freshenV :: "nat \<Rightarrow> 'var \<Rightarrow>  'var annotated" where "freshenV a v = (v,a)"
