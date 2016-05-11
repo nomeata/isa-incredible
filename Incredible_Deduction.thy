@@ -492,9 +492,14 @@ locale Well_Scoped_Instantiation =
     and inst :: "'vertex \<Rightarrow> 'subst" 
     and edges :: "('vertex, 'outPort, 'inPort) edge set" 
     and local_vars :: "'node \<Rightarrow> 'inPort \<Rightarrow> 'var set" +
-  assumes well_scoped_inst: "valid_in_port (v,p) \<Longrightarrow> var \<in> local_vars (nodeOf v) p \<Longrightarrow> freshenV (fidx vertices v) var \<in> ran_fv (inst v') \<Longrightarrow> v' \<in> scope (v,p)"
+  assumes well_scoped_inst:
+    "valid_in_port (v,p) \<Longrightarrow>
+     var \<in> local_vars (nodeOf v) p \<Longrightarrow>
+     v' |\<in>| vertices \<Longrightarrow>
+     freshenV (fidx vertices v) var \<in> ran_fv (inst v') \<Longrightarrow>
+     v' \<in> scope (v,p)"
 begin
-  lemma out_of_scope: "valid_in_port (v,p) \<Longrightarrow> v' \<notin> scope (v,p) \<Longrightarrow> freshenV (fidx vertices v) ` local_vars (nodeOf v) p \<inter> ran_fv (inst v') = {}"
+  lemma out_of_scope: "valid_in_port (v,p) \<Longrightarrow> v' |\<in>| vertices \<Longrightarrow> v' \<notin> scope (v,p) \<Longrightarrow> freshenV (fidx vertices v) ` local_vars (nodeOf v) p \<inter> ran_fv (inst v') = {}"
     using well_scoped_inst by auto
 end
   

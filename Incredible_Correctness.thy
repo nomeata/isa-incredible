@@ -219,7 +219,7 @@ case (wf v p pth)
 
         from `terminal_path v' t ?pth'` Hyp(1)
         have "v'' \<notin> scope (v', ant)" by (rule hyps_free_path_not_in_scope)
-        with `valid_in_port (v',ant)`
+        with `valid_in_port (v',ant)` `v'' |\<in>| vertices`
         have "freshenV (fidx vertices v') ` local_vars (nodeOf v') ant \<inter> ran_fv (inst v'') = {}"
          by (rule out_of_scope)
         moreover
@@ -250,8 +250,9 @@ case (wf v p pth)
       from  `v' |\<in>| vertices` `ant |\<in>| f_antecedent r`
       have "valid_in_port (v',ant)" by (simp add: Rule)
       moreover
-      from `v' |\<in>| vertices`
-      have "v' \<notin> scope (v', ant)" by (rule scopes_not_refl)
+      note `v' |\<in>| vertices`
+      moreover
+      hence "v' \<notin> scope (v', ant)" by (rule scopes_not_refl)
       ultimately
       have "freshenV (fidx vertices v') ` local_vars (nodeOf v') ant \<inter> ran_fv (inst v') = {}"
         by (rule out_of_scope)
