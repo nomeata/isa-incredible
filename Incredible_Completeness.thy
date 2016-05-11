@@ -392,13 +392,10 @@ using assms by induction (auto elim!: edge_step )
 sublocale Instantiation inPorts outPorts nodeOf hyps fv ran_fv closed anyP nodes edges vertices labelsIn labelsOut pre_fv subst freshen inst..
 
 lemma fidx_iAnnot:
-  assumes "is \<in> it_paths (it c)"
-  shows "fidx vertices (c, plain_ant c # is) = iAnnot (tree_at (it c) is)"
-using assms
-apply(induction "is" arbitrary: c rule: it_paths_induct)
-apply simp
-find_theorems it
-oops
+  shows "is \<in> it_paths (it' c) \<Longrightarrow> iAnnot (tree_at (it' c) is) = fidx vertices (c, plain_ant c # is)"
+  and "iAnnot (it' c) = fidx vertices (c, [plain_ant c])"
+
+sorry
 
 sublocale Tasked_Proof_Graph freshen fv ran_fv closed anyP subst pre_fv antecedent consequent fresh_vars rules assumptions conclusions
   vertices nodeOf edges inst
@@ -509,9 +506,7 @@ proof
    
     from `((v\<^sub>1, p\<^sub>1), v\<^sub>2, p\<^sub>2) = edge_at c is`
     have "(v\<^sub>1,p\<^sub>1) = edge_from c is" using fst_edge_at by (metis fst_conv)
-    hence "v\<^sub>1 = (c, plain_ant c # is)" by (simp add: edge_from_def)
-    moreover have "fidx vertices (c, plain_ant c # is) = iAnnot (tree_at (it' c) is)" sorry
-    ultimately have fidx: "fidx vertices v\<^sub>1 = iAnnot (tree_at (it' c) is)" by simp
+    hence [simp]: "v\<^sub>1 = (c, plain_ant c # is)" by (simp add: edge_from_def)
 
     show ?thesis
     proof(cases "is" rule:rev_cases)
@@ -519,8 +514,7 @@ proof
       let "?t'" = "it' c"
       have "labelAtOut v\<^sub>1 p\<^sub>1 = subst (iSubst ?t') (freshen (fidx vertices v\<^sub>1) (iOutPort ?t'))"
         using regular_edge Nil by (simp add: labelAtOut_def edge_at_def edge_from_def)
-      also have "fidx vertices v\<^sub>1 = iAnnot ?t'"
-        using fidx Nil by simp
+      also have "fidx vertices v\<^sub>1 = iAnnot ?t'" by (simp add: fidx_iAnnot Nil)
       also have "subst (iSubst ?t') (freshen (iAnnot ?t') (iOutPort ?t')) = snd (fst (tree.root (ts (to_form c))))"
         unfolding iwf_subst_freshen_outPort[OF global_iwf_it[OF `c \<in> set conclusions`]]..
       also have "\<dots> = to_form c" using `c \<in> set conclusions` by (simp add: ts_conc)
@@ -535,12 +529,12 @@ proof
       let "?t2" = "tree_at (it' c) is'"
       have "labelAtOut v\<^sub>1 p\<^sub>1 = subst (iSubst ?t1) (freshen (fidx vertices v\<^sub>1) (iOutPort ?t1))"
         using regular_edge snoc by (simp add: labelAtOut_def edge_at_def edge_from_def)
-      also have "fidx vertices v\<^sub>1 = iAnnot ?t1" using fidx snoc by simp
+      also have "fidx vertices v\<^sub>1 = iAnnot ?t1" using snoc regular_edge(3)
+        by (simp add: fidx_iAnnot)
       also have "subst (iSubst ?t1) (freshen (iAnnot ?t1) (iOutPort ?t1)) = subst (iSubst ?t2) (freshen (iAnnot ?t2) (a_conc i))"
-        apply (rule iwf_edge_match[OF global_iwf_it[OF `c \<in> set conclusions`]])
-        apply (simp add: `is \<in> it_paths (it' c)`[unfolded snoc])
-        done
-      also have "iAnnot ?t2 = (fidx vertices (c, plain_ant c # is'))" sorry
+        by (rule iwf_edge_match[OF global_iwf_it[OF `c \<in> set conclusions`] `is \<in> it_paths (it' c)`[unfolded snoc]])
+      also have "iAnnot ?t2 = (fidx vertices (c, plain_ant c # is'))"
+         using snoc regular_edge(3) by (auto elim: it_path_SnocE simp add:fidx_iAnnot )
       also have "subst (iSubst ?t2) (freshen (fidx vertices (c, plain_ant c # is')) (a_conc i)) = labelAtIn v\<^sub>2 p\<^sub>2"
         using regular_edge snoc by (simp add: labelAtIn_def edge_at_def)
       finally show ?thesis.
@@ -553,19 +547,24 @@ proof
     let "?t1" = "tree_at (it' c) ?his"
     let "?t2" = "tree_at (it' c) is"
 
-    have fidx: "fidx vertices v\<^sub>1 = iAnnot (tree_at (it' c) is)" sorry
-
     from `c \<in> set conclusions` `is \<in> it_paths (it' c)` `tree_at (it' c) is = HNode n s`
     have "?f \<in> hyps_along (it' c) is"
       by (rule hyps_exist')
 
+    from `((v\<^sub>1, p\<^sub>1), v\<^sub>2, p\<^sub>2) = hyp_edge_at c is n s`
+    have "(v\<^sub>1,p\<^sub>1) = hyp_edge_from c is n s" using fst_hyp_edge_at by (metis fst_conv)
+    hence [simp]: "v\<^sub>1 = (c, plain_ant c # ?his)" by (simp add: hyp_edge_from_def)
+
+
     have "labelAtOut v\<^sub>1 p\<^sub>1 = subst (iSubst ?t1) (freshen (fidx vertices v\<^sub>1) (labelsOut (iNodeOf ?t1) ?h))"
       using hyp_edge by (simp add: hyp_edge_at_def hyp_edge_from_def labelAtOut_def)
-    also have "\<dots> = subst (iSubst ?t1) (freshen (iAnnot ?t1) (labelsOut (iNodeOf ?t1) ?h))" sorry
-    also have "\<dots> = ?f" using `?f \<in> hyps_along (it' c) is` by (rule local.hyp_port_eq[symmetric])
+    also have "fidx vertices v\<^sub>1 = iAnnot ?t1"
+      by (simp add: fidx_iAnnot hyp_port_it_paths[OF `is \<in> it_paths (it' c)` `?f \<in> hyps_along (it' c) is`])
+    also have "subst (iSubst ?t1) (freshen (iAnnot ?t1) (labelsOut (iNodeOf ?t1) ?h)) = ?f" using `?f \<in> hyps_along (it' c) is` by (rule local.hyp_port_eq[symmetric])
     also have "\<dots> = subst (iSubst ?t2) (freshen (iAnnot ?t2) anyP)"
       using hyp_edge by simp
-    also have "iAnnot ?t2 = (fidx vertices (c, plain_ant c # is))" sorry
+    also have "iAnnot ?t2 = (fidx vertices (c, plain_ant c # is))"
+      by (rule fidx_iAnnot)(rule `is \<in> it_paths (it' c)`)
     also have "subst (iSubst ?t2) (freshen (fidx vertices (c, plain_ant c # is)) anyP) = labelAtIn v\<^sub>2 p\<^sub>2"
         using hyp_edge by (simp add: labelAtIn_def  hyp_edge_at_def hyp_edge_to_def)
     finally show ?thesis.

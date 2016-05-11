@@ -507,6 +507,13 @@ lemma hyp_port_prefix:
   shows "prefix (hyp_port_path_for t is f) is"
 using hyp_port_prefixeq[OF assms] by (simp add: prefixI' prefix_order.dual_order.strict_trans1)
 
+lemma hyp_port_it_paths:
+  assumes "is \<in> it_paths t"
+  assumes "f \<in> hyps_along t is"
+  shows "hyp_port_path_for t is f \<in> it_paths t"
+using assms by (rule it_paths_prefix[OF _ hyp_port_prefix] )
+
+
 lemma hyp_port_hyps:
   assumes "f \<in> hyps_along t is"
   shows "hyps (iNodeOf (tree_at t (hyp_port_path_for t is f))) (hyp_port_h_for t is f) = Some (hyp_port_i_for t is f)"
