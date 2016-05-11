@@ -12,8 +12,6 @@ locale Port_Graph_Signature =
   fixes inPorts :: "'node \<Rightarrow> 'inPort fset"
   fixes outPorts :: "'node \<Rightarrow> 'outPort fset"
 
-type_synonym ('v, 'outPort, 'inPort) edge = "(('v \<times> 'outPort) \<times> ('v \<times> 'inPort))"
-
 locale Vertex_Graph = 
   Port_Graph_Signature nodes inPorts outPorts
     for nodes :: "'node stream"
@@ -31,6 +29,8 @@ begin
     "terminal_vertex v \<longleftrightarrow> v |\<in>| vertices \<and> terminal_node (nodeOf v)"
 
 end
+
+type_synonym ('v, 'outPort, 'inPort) edge = "(('v \<times> 'outPort) \<times> ('v \<times> 'inPort))"
 
 locale Pre_Port_Graph =
   Vertex_Graph nodes inPorts outPorts vertices nodeOf
