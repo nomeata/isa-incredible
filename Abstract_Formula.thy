@@ -6,14 +6,14 @@ imports
   Indexed_FSet
 begin
 
-type_synonym 'a annotated = "('a \<times> nat)"
+type_synonym ('a,'b) annotated = "('a \<times> 'b)"
 
 locale Abstract_Formulas =
-  fixes freshen :: "nat \<Rightarrow> 'preform \<Rightarrow> 'form"
+  fixes freshen :: "'annot \<Rightarrow> 'preform \<Rightarrow> 'form"
   fixes pre_fv :: "'preform \<Rightarrow> 'var set"
-  fixes fv :: "'form \<Rightarrow> 'var annotated set"
+  fixes fv :: "'form \<Rightarrow> ('var,'annot) annotated set"
   fixes subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form"
-  fixes ran_fv :: "'subst \<Rightarrow> 'var annotated set"
+  fixes ran_fv :: "'subst \<Rightarrow> ('var,'annot) annotated set"
   fixes closed :: "'preform \<Rightarrow> bool"
   fixes anyP :: "'preform"
   assumes fv_freshen': "fv (freshen a pf) = (\<lambda> v. (v,a)) ` pre_fv pf"
@@ -23,7 +23,7 @@ locale Abstract_Formulas =
   assumes closed_eq: "closed pf1 \<Longrightarrow> subst s1 (freshen a1 pf1) = subst s2 (freshen a2 pf2) \<longleftrightarrow> pf1 = pf2"
   assumes anyP_is_any: "\<exists> s. subst s (freshen a anyP) = f"
 begin
-  definition freshenV :: "nat \<Rightarrow> 'var \<Rightarrow>  'var annotated" where "freshenV a v = (v,a)"
+  definition freshenV :: "'annot \<Rightarrow> 'var \<Rightarrow>  ('var,'annot) annotated" where "freshenV a v = (v,a)"
   lemma fv_freshen: "fv (freshen a pf) = freshenV a ` pre_fv pf"
     using freshenV_def fv_freshen' by auto
   lemma freshenV_eq_iff[simp]: "freshenV a v = freshenV a' v' \<longleftrightarrow> a = a' \<and> v = v'"
@@ -40,11 +40,11 @@ abbreviation plain_ant :: "'preform \<Rightarrow> ('preform, 'var) antecedent"
 
 locale Abstract_Rules =
   Abstract_Formulas freshen pre_fv fv subst ran_fv closed anyP
-  for freshen :: "nat \<Rightarrow> 'preform \<Rightarrow> 'form"
+  for freshen :: "'annot \<Rightarrow> 'preform \<Rightarrow> 'form"
   and pre_fv :: "'preform \<Rightarrow> 'var set"
-  and fv :: "'form \<Rightarrow> 'var annotated set"
+  and fv :: "'form \<Rightarrow> ('var,'annot) annotated set"
   and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" 
-  and ran_fv :: "'subst \<Rightarrow> ('var \<times> nat) set" 
+  and ran_fv :: "'subst \<Rightarrow> ('var \<times> 'annot) set" 
   and closed :: "'preform \<Rightarrow> bool" 
   and anyP :: "'preform" +
   fixes antecedent :: "'rule \<Rightarrow> ('preform, 'var) antecedent list"
@@ -58,11 +58,11 @@ end
 
 locale Abstract_Task =
   Abstract_Rules freshen pre_fv fv subst ran_fv closed anyP  antecedent consequent rules
-  for freshen :: "nat \<Rightarrow> 'preform \<Rightarrow> 'form" 
+  for freshen :: "'annot \<Rightarrow> 'preform \<Rightarrow> 'form" 
     and pre_fv :: "'preform \<Rightarrow> 'var set" 
-    and fv :: "'form \<Rightarrow> 'var annotated set" 
+    and fv :: "'form \<Rightarrow> ('var,'annot) annotated set" 
     and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" 
-    and ran_fv :: "'subst \<Rightarrow> 'var annotated set" 
+    and ran_fv :: "'subst \<Rightarrow> ('var,'annot) annotated set" 
     and closed :: "'preform \<Rightarrow> bool" 
     and anyP :: "'preform" 
     and antecedent :: "'rule \<Rightarrow> ('preform, 'var) antecedent list"

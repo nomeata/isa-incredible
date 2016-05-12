@@ -447,13 +447,18 @@ locale Instantiation =
   Labeled_Signature nodes  _ _ _ labelsIn labelsOut +
   Abstract_Formulas freshen pre_fv _ subst
   for nodes :: "'node stream" and edges :: "('vertex, 'outPort, 'inPort) edge set" and vertices :: "'vertex fset" and labelsIn :: "'node \<Rightarrow> 'inPort \<Rightarrow> 'preform" and labelsOut :: "'node \<Rightarrow> 'outPort \<Rightarrow> 'preform" 
-  and pre_fv :: "'preform \<Rightarrow> 'var set" and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" and freshen :: "nat \<Rightarrow> 'preform \<Rightarrow> 'form" +
+  and pre_fv :: "'preform \<Rightarrow> 'var set" and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" and freshen :: "'annot \<Rightarrow> 'preform \<Rightarrow> 'form" +
   fixes inst :: "'vertex \<Rightarrow> 'subst"
+  fixes vidx :: "'vertex \<Rightarrow> 'annot"
+  assumes vidx_inj: "inj_on vidx (fset vertices)"
 begin
+  lemma "inj_on (fidx vertices) (fset vertices)"
+  by (rule inj_onI) (auto simp: fmember.rep_eq [symmetric])
+
   definition labelAtIn :: "'vertex \<Rightarrow> 'inPort \<Rightarrow> 'form"  where
-    "labelAtIn v p = subst (inst v) (freshen (fidx vertices v) (labelsIn (nodeOf v) p))"
+    "labelAtIn v p = subst (inst v) (freshen (vidx v) (labelsIn (nodeOf v) p))"
   definition labelAtOut :: "'vertex \<Rightarrow> 'outPort \<Rightarrow> 'form"  where
-    "labelAtOut v p = subst (inst v) (freshen (fidx vertices v) (labelsOut (nodeOf v) p))"
+    "labelAtOut v p = subst (inst v) (freshen (vidx v) (labelsOut (nodeOf v) p))"
 end
 
 locale Solution =
@@ -467,19 +472,19 @@ locale Port_Graph_Signature_Scoped_Vars =
   Port_Graph_Signature nodes inPorts outPorts +
   Abstract_Formulas freshen pre_fv _ subst
   for nodes :: "'node stream" and inPorts :: "'node \<Rightarrow> 'inPort fset"  and outPorts :: "'node \<Rightarrow> 'outPort fset"
-  and pre_fv :: "'preform \<Rightarrow> 'var set" and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" and freshen :: "nat \<Rightarrow> 'preform \<Rightarrow> 'form" +
+  and pre_fv :: "'preform \<Rightarrow> 'var set" and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" and freshen :: "'annot \<Rightarrow> 'preform \<Rightarrow> 'form" +
   fixes local_vars :: "'node \<Rightarrow> 'inPort \<Rightarrow> 'var set"
 
 locale Well_Scoped_Instantiation =
    Pre_Port_Graph  nodes inPorts outPorts vertices nodeOf edges +
-   Instantiation  inPorts outPorts nodeOf hyps fv ran_fv closed anyP nodes edges vertices labelsIn labelsOut pre_fv subst freshen inst +
+   Instantiation  inPorts outPorts nodeOf hyps fv ran_fv closed anyP nodes edges vertices labelsIn labelsOut pre_fv subst freshen inst vidx +
    Port_Graph_Signature_Scoped_Vars fv ran_fv closed anyP nodes  inPorts outPorts pre_fv subst freshen local_vars
    for inPorts :: "'node \<Rightarrow> 'inPort fset" 
     and outPorts :: "'node \<Rightarrow> 'outPort fset" 
     and nodeOf :: "'vertex \<Rightarrow> 'node" 
     and hyps :: "'node \<Rightarrow> 'outPort \<Rightarrow> 'inPort option" 
-    and fv :: "'form \<Rightarrow> 'var annotated set" 
-    and ran_fv :: "'subst \<Rightarrow> 'var annotated set" 
+    and fv :: "'form \<Rightarrow> ('var,'annot) annotated set" 
+    and ran_fv :: "'subst \<Rightarrow> ('var,'annot) annotated set" 
     and closed :: "'preform \<Rightarrow> bool" 
     and anyP  :: "'preform" 
     and nodes :: "'node stream" 
@@ -488,33 +493,34 @@ locale Well_Scoped_Instantiation =
     and labelsOut :: "'node \<Rightarrow> 'outPort \<Rightarrow> 'preform" 
     and pre_fv :: "'preform \<Rightarrow> 'var set" 
     and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" 
-    and freshen :: "nat \<Rightarrow> 'preform \<Rightarrow> 'form" 
-    and inst :: "'vertex \<Rightarrow> 'subst" 
+    and freshen :: "'annot \<Rightarrow> 'preform \<Rightarrow> 'form" 
+    and inst :: "'vertex \<Rightarrow> 'subst"
+    and vidx :: "'vertex \<Rightarrow> 'annot"
     and edges :: "('vertex, 'outPort, 'inPort) edge set" 
     and local_vars :: "'node \<Rightarrow> 'inPort \<Rightarrow> 'var set" +
   assumes well_scoped_inst:
     "valid_in_port (v,p) \<Longrightarrow>
      var \<in> local_vars (nodeOf v) p \<Longrightarrow>
      v' |\<in>| vertices \<Longrightarrow>
-     freshenV (fidx vertices v) var \<in> ran_fv (inst v') \<Longrightarrow>
+     freshenV (vidx v) var \<in> ran_fv (inst v') \<Longrightarrow>
      v' \<in> scope (v,p)"
 begin
-  lemma out_of_scope: "valid_in_port (v,p) \<Longrightarrow> v' |\<in>| vertices \<Longrightarrow> v' \<notin> scope (v,p) \<Longrightarrow> freshenV (fidx vertices v) ` local_vars (nodeOf v) p \<inter> ran_fv (inst v') = {}"
+  lemma out_of_scope: "valid_in_port (v,p) \<Longrightarrow> v' |\<in>| vertices \<Longrightarrow> v' \<notin> scope (v,p) \<Longrightarrow> freshenV (vidx v) ` local_vars (nodeOf v) p \<inter> ran_fv (inst v') = {}"
     using well_scoped_inst by auto
 end
   
 
 locale Scoped_Proof_Graph =
-  Instantiation  inPorts outPorts nodeOf hyps fv ran_fv closed anyP nodes edges vertices labelsIn labelsOut pre_fv subst freshen inst  +
+  Instantiation  inPorts outPorts nodeOf hyps fv ran_fv closed anyP nodes edges vertices labelsIn labelsOut pre_fv subst freshen inst vidx +
   Well_Shaped_Graph  nodes inPorts outPorts vertices nodeOf edges hyps  +
-  Solution inPorts outPorts nodeOf hyps fv ran_fv closed anyP nodes vertices labelsIn labelsOut pre_fv subst freshen inst edges +
-  Well_Scoped_Instantiation inPorts outPorts nodeOf hyps fv ran_fv closed anyP nodes vertices labelsIn labelsOut pre_fv subst freshen inst edges local_vars
+  Solution inPorts outPorts nodeOf hyps fv ran_fv closed anyP nodes vertices labelsIn labelsOut pre_fv subst freshen inst vidx edges +
+  Well_Scoped_Instantiation inPorts outPorts nodeOf hyps fv ran_fv closed anyP nodes vertices labelsIn labelsOut pre_fv subst freshen inst vidx edges local_vars
    for inPorts :: "'node \<Rightarrow> 'inPort fset" 
     and outPorts :: "'node \<Rightarrow> 'outPort fset" 
     and nodeOf :: "'vertex \<Rightarrow> 'node" 
     and hyps :: "'node \<Rightarrow> 'outPort \<Rightarrow> 'inPort option" 
-    and fv :: "'form \<Rightarrow> 'var annotated set" 
-    and ran_fv :: "'subst \<Rightarrow> 'var annotated set" 
+    and fv :: "'form \<Rightarrow> ('var,'annot) annotated set" 
+    and ran_fv :: "'subst \<Rightarrow> ('var,'annot) annotated set" 
     and closed :: "'preform \<Rightarrow> bool" 
     and anyP :: "'preform" 
     and nodes :: "'node stream" 
@@ -523,8 +529,9 @@ locale Scoped_Proof_Graph =
     and labelsOut :: "'node \<Rightarrow> 'outPort \<Rightarrow> 'preform" 
     and pre_fv :: "'preform \<Rightarrow> 'var set" 
     and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" 
-    and freshen :: "nat \<Rightarrow> 'preform \<Rightarrow> 'form" 
+    and freshen :: "'annot \<Rightarrow> 'preform \<Rightarrow> 'form" 
     and inst :: "'vertex \<Rightarrow> 'subst" 
+    and vidx :: "'vertex \<Rightarrow> 'annot"
     and edges :: "('vertex, 'outPort, 'inPort) edge  set" 
     and local_vars :: "'node \<Rightarrow> 'inPort \<Rightarrow> 'var set"
 
@@ -606,10 +613,10 @@ end
 
 locale Tasked_Proof_Graph =
   Abstract_Task  freshen pre_fv fv subst ran_fv closed anyP antecedent consequent rules assumptions conclusions  +
-  Scoped_Proof_Graph inPorts outPorts nodeOf hyps fv ran_fv closed anyP nodes vertices labelsIn labelsOut pre_fv subst freshen inst edges local_vars
-  for freshen :: "nat \<Rightarrow> 'preform \<Rightarrow> 'form" 
-    and fv :: "'form \<Rightarrow> 'var annotated set" 
-    and ran_fv :: "'subst \<Rightarrow> 'var annotated set" 
+  Scoped_Proof_Graph inPorts outPorts nodeOf hyps fv ran_fv closed anyP nodes vertices labelsIn labelsOut pre_fv subst freshen inst vidx edges local_vars
+  for freshen :: "'annot \<Rightarrow> 'preform \<Rightarrow> 'form" 
+    and fv :: "'form \<Rightarrow> ('var,'annot) annotated set" 
+    and ran_fv :: "'subst \<Rightarrow> ('var,'annot) annotated set" 
     and closed :: "'preform \<Rightarrow> bool"
     and anyP :: "'preform"
     and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" 
@@ -626,7 +633,8 @@ locale Tasked_Proof_Graph =
     and vertices :: "'vertex fset" 
     and nodeOf :: "'vertex \<Rightarrow> ('preform, 'rule) graph_node" 
     and edges :: "('vertex, 'preform, 'var) edge' set" 
-    and inst :: "'vertex \<Rightarrow> 'subst"  +
+    and inst :: "'vertex \<Rightarrow> 'subst"
+    and vidx :: "'vertex \<Rightarrow> 'annot" +
   assumes conclusions_present: "set (map Conclusion conclusions) \<subseteq> nodeOf ` fset vertices"
 
 end

@@ -35,11 +35,11 @@ end
 
 locale ND_Rules_Inst =
   Abstract_Formulas freshen pre_fv fv subst ran_fv closed
-  for freshen :: "nat \<Rightarrow> 'preform \<Rightarrow> 'form" 
+  for freshen :: "'annot \<Rightarrow> 'preform \<Rightarrow> 'form" 
   and pre_fv :: "'preform \<Rightarrow> 'var set" 
-  and fv :: "'form \<Rightarrow> 'var annotated set" 
+  and fv :: "'form \<Rightarrow> ('var,'annot) annotated set" 
   and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" 
-  and ran_fv :: "'subst \<Rightarrow> 'var annotated set" 
+  and ran_fv :: "'subst \<Rightarrow> ('var,'annot) annotated set" 
   and closed :: "'preform \<Rightarrow> bool" +
 
   fixes nat_rule :: "'rule \<Rightarrow> 'preform \<Rightarrow> ('preform, 'var) antecedent fset \<Rightarrow> bool"

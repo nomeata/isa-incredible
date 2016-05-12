@@ -392,7 +392,11 @@ lemma hyps_free_path_length:
   shows "length pth + length (snd v') = length (snd v)"
 using assms by induction (auto elim!: edge_step )
 
-sublocale Instantiation inPorts outPorts nodeOf hyps fv ran_fv closed anyP nodes edges vertices labelsIn labelsOut pre_fv subst freshen inst..
+sublocale Instantiation inPorts outPorts nodeOf hyps fv ran_fv closed anyP nodes edges vertices labelsIn labelsOut pre_fv subst freshen inst "fidx vertices"
+proof
+  show "inj_on (fidx vertices) (fset vertices)"
+    by (auto intro: inj_onI simp: fmember.rep_eq)
+qed
 
 lemma fidx_iAnnot:
   shows "is \<in> it_paths (it' c) \<Longrightarrow> iAnnot (tree_at (it' c) is) = fidx vertices (c, plain_ant c # is)"
@@ -400,7 +404,7 @@ lemma fidx_iAnnot:
 sorry
 
 sublocale Tasked_Proof_Graph freshen fv ran_fv closed anyP subst pre_fv antecedent consequent fresh_vars rules assumptions conclusions
-  vertices nodeOf edges inst
+  vertices nodeOf edges inst "fidx vertices"
 proof
   fix v\<^sub>1 p\<^sub>1 v\<^sub>2 p\<^sub>2 p'
   assume assms: "((v\<^sub>1, p\<^sub>1), (v\<^sub>2, p\<^sub>2)) \<in> edges" "hyps (nodeOf v\<^sub>1) p\<^sub>1 = Some p'"
