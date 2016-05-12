@@ -14,7 +14,7 @@ lemma ffUnion_finsert[simp]: "ffUnion (finsert x S) = x |\<union>| ffUnion S"
 context Tasked_Proof_Graph
 begin
 
-  definition adjacentTo :: "'vertex \<Rightarrow> ('preform, 'var) in_port \<Rightarrow> ('vertex \<times> ('preform, 'var) out_port)" where
+  definition adjacentTo :: "'vertex \<Rightarrow> ('form, 'var) in_port \<Rightarrow> ('vertex \<times> ('form, 'var) out_port)" where
    "adjacentTo v p = (SOME ps. (ps, (v,p)) \<in> edges)" 
   
   fun isReg where
@@ -56,10 +56,10 @@ begin
   lemmas global_assms_simps = global_assms'.simps[Transfer.transferred]
   end
 
-  fun extra_assms :: "('vertex \<times> ('preform, 'var) in_port) \<Rightarrow> 'form fset" where
+  fun extra_assms :: "('vertex \<times> ('form, 'var) in_port) \<Rightarrow> 'form fset" where
     "extra_assms (v, p) = (\<lambda> p. labelAtOut v p) |`| hyps_for (nodeOf v) p"
 
-  fun hyps_along :: "('vertex, 'preform, 'var) edge' list \<Rightarrow> 'form fset" where
+  fun hyps_along :: "('vertex, 'form, 'var) edge' list \<Rightarrow> 'form fset" where
     "hyps_along pth = ffUnion (extra_assms |`| snd |`| fset_from_list pth) |\<union>| global_assms TYPE('var)"
 
   lemma hyps_alongE[consumes 1, case_names Hyp Assumption]:
@@ -71,7 +71,7 @@ begin
     apply (metis image_iff snd_conv)
     done
 
-  primcorec tree :: "'vertex \<Rightarrow> ('preform, 'var) in_port \<Rightarrow> ('vertex, 'preform, 'var) edge' list \<Rightarrow>  (('form entailment), ('rule \<times> 'preform) NatRule) dtree" where
+  primcorec tree :: "'vertex \<Rightarrow> ('form, 'var) in_port \<Rightarrow> ('vertex, 'form, 'var) edge' list \<Rightarrow>  (('form entailment), ('rule \<times> 'form) NatRule) dtree" where
    "root (tree v p pth) =
       ((hyps_along ((adjacentTo v p,(v,p))#pth) \<turnstile> labelAtIn v p),
       (case adjacentTo v p of (v', p') \<Rightarrow> toNatRule v' p'
@@ -226,13 +226,14 @@ case (wf v p pth)
         from hyps_free_vertices_distinct'[OF `terminal_path v' t ?pth'`] Hyp.hyps(1)
         have "v'' \<noteq> v'" by (metis distinct.simps(2) fst_conv image_eqI list.set_map)
         hence "fidx vertices v'' \<noteq> fidx vertices v'" using `v' |\<in>| vertices` `v'' |\<in>| vertices` by simp
-        hence "freshenV (fidx vertices v') ` a_fresh ant \<inter> freshenV (fidx vertices v'') ` pre_fv (labelsOut (nodeOf v'') h'') = {}"
+        hence "freshenV (fidx vertices v') ` a_fresh ant \<inter> freshenV (fidx vertices v'') ` fv (labelsOut (nodeOf v'') h'') = {}"
           by (auto simp add: freshenV_eq_iff)
         moreover
         have "fv f \<subseteq> fv (freshen (fidx vertices v'') (labelsOut (nodeOf v'') h'')) \<union> ran_fv (inst v'') " using `f = _`
           by (simp add: labelAtOut_def fv_subst)
         ultimately
-        show ?thesis by (fastforce simp add: fv_freshen)
+        show ?thesis 
+          by (fastforce simp add: fv_freshen)
       next
         case (Assumption v pf)
         hence "f = subst (inst v) (freshen (fidx vertices v) pf)" by (simp add: labelAtOut_def)
@@ -241,7 +242,7 @@ case (wf v p pth)
         hence "pf \<in> set assumptions" unfolding nodes_def by (auto simp add: stream.set_map)
         hence "closed pf" by (rule assumptions_closed)
         ultimately
-        have "fv f = {}" using closed_pre_fv subst_no_vars fv_freshen by blast
+        have "fv f = {}" by (simp add: closed_fv fv_freshen subst_closed)
         thus ?thesis by simp
       qed      
     next
@@ -341,11 +342,11 @@ proof
   hence "pf \<in> set assumptions" by (auto simp add: nodes_def stream.set_map)
   hence "closed pf" by (rule  assumptions_closed)
   with `x = labelAtOut v (Reg pf)`
-  have "x = subst undefined (freshen undefined pf)" by (auto simp add: closed_eq labelAtOut_def)
+  have "x = pf" by (auto simp add: labelAtOut_def closed_fv freshen_def rename_closed subst_closed)
   thus "x |\<in>| ass_forms" using `pf \<in> set assumptions` by (auto simp add: ass_forms_def)
 qed
 
-primcorec edge_tree :: "'vertex \<Rightarrow> ('preform, 'var) in_port \<Rightarrow> ('vertex, 'preform, 'var) edge' tree" where
+primcorec edge_tree :: "'vertex \<Rightarrow> ('form, 'var) in_port \<Rightarrow> ('vertex, 'form, 'var) edge' tree" where
  "root (edge_tree v p) = (adjacentTo v p, (v,p))"
  | "cont (edge_tree v p) =
     (case adjacentTo v p of (v', p') \<Rightarrow>
@@ -375,7 +376,7 @@ proof-
   thus ?thesis by (metis tfinite_map_tree)
 qed
 
-coinductive forbidden_path :: "'vertex \<Rightarrow> ('vertex, 'preform, 'var) edge' stream \<Rightarrow> bool"   where
+coinductive forbidden_path :: "'vertex \<Rightarrow> ('vertex, 'form, 'var) edge' stream \<Rightarrow> bool"   where
     forbidden_path: "((v\<^sub>1,p\<^sub>1),(v\<^sub>2,p\<^sub>2)) \<in> edges \<Longrightarrow> hyps (nodeOf v\<^sub>1) p\<^sub>1 = None \<Longrightarrow> forbidden_path v\<^sub>1 pth \<Longrightarrow> forbidden_path v\<^sub>2 (((v\<^sub>1,p\<^sub>1),(v\<^sub>2,p\<^sub>2))##pth)"
 
 lemma path_is_forbidden:
@@ -495,7 +496,7 @@ proof(rule ccontr)
   let ?n = "Suc (fcard vertices)"
   assume "\<not> tfinite (tree v p pth)"
   hence "\<not> tfinite (edge_tree v p)" unfolding finite_tree_edge_tree.
-  then obtain es  :: "('vertex, 'preform, 'var) edge' stream"
+  then obtain es  :: "('vertex, 'form, 'var) edge' stream"
     where "ipath (edge_tree v p) es" using Konig by blast
   with `valid_in_port (v,p)`
   have "forbidden_path v es" by (rule path_is_forbidden)
@@ -514,22 +515,21 @@ unfolding solved_def
 proof(intro ballI allI conjI impI)
   fix c
   assume "c |\<in>| conc_forms"
-  then obtain pf where "pf \<in> set conclusions" and "c = subst undefined (freshen undefined pf)"
-    by (auto simp add: conc_forms_def)
+  hence "c \<in> set conclusions"  by (auto simp add: conc_forms_def)
   from this(1) conclusions_present
-  obtain v where "v |\<in>| vertices" and "nodeOf v = Conclusion pf"
+  obtain v where "v |\<in>| vertices" and "nodeOf v = Conclusion c"
     by (auto, metis (no_types, lifting) image_iff image_subset_iff notin_fset)
 
-  have "valid_in_port (v, (plain_ant pf))"
+  have "valid_in_port (v, (plain_ant c))"
     using `v |\<in>| vertices` `nodeOf _ = _ `  by simp
 
-  have "terminal_vertex v" using `v |\<in>| vertices` `nodeOf v = Conclusion pf` by auto
+  have "terminal_vertex v" using `v |\<in>| vertices` `nodeOf v = Conclusion c` by auto
 
-  let ?t = "tree v (plain_ant pf) []"
+  let ?t = "tree v (plain_ant c) []"
 
   have "fst (root ?t) = (global_assms TYPE('var), c)"
-    using `pf \<in> set conclusions` `c = _` `nodeOf _ = _`
-    by (simp add: labelAtIn_def closed_eq conclusions_closed)
+    using `c \<in> set conclusions` `nodeOf _ = _`
+    by (auto simp add: labelAtIn_def conclusions_closed closed_fv freshen_def rename_closed subst_closed)
   moreover
 
   have "global_assms TYPE('var) |\<subseteq>| ass_forms" by (rule global_in_ass)
@@ -537,11 +537,11 @@ proof(intro ballI allI conjI impI)
 
   from  `terminal_vertex v`
   have "terminal_path v v []" by (rule terminal_path_empty)
-  with `valid_in_port (v, (plain_ant pf))`
+  with `valid_in_port (v, (plain_ant c))`
   have "wf ?t" by (rule wf_tree)
   moreover
 
-  from `valid_in_port (v, plain_ant pf)` `terminal_vertex v`
+  from `valid_in_port (v, plain_ant c)` `terminal_vertex v`
   have "tfinite ?t" by (rule finite_tree)
   ultimately
   

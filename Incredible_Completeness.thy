@@ -3,25 +3,24 @@ imports Natural_Deduction Incredible_Deduction Incredible_Trees
 begin
 
 locale Solved_Task =
-  Abstract_Task freshen pre_fv fv subst ran_fv closed anyP antecedent consequent rules assumptions conclusions
-  for   ran_fv :: "'subst \<Rightarrow> ('var \<times> nat) set" 
-    and closed :: "'preform \<Rightarrow> bool" 
-    and anyP :: "'preform" 
-    and freshen :: "nat \<Rightarrow> 'preform \<Rightarrow> 'form" 
-    and pre_fv :: "'preform \<Rightarrow> 'var set" 
-    and fv :: "'form \<Rightarrow> ('var \<times> nat) set" 
+  Abstract_Task  freshenV rename fv subst ran_fv anyP antecedent consequent rules assumptions conclusions
+   for freshenV :: "nat \<Rightarrow> 'var \<Rightarrow> 'var" 
+    and rename :: "('var \<Rightarrow> 'var) \<Rightarrow> 'form \<Rightarrow> 'form" 
+    and fv :: "'form \<Rightarrow> 'var set" 
     and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" 
-    and antecedent :: "'rule \<Rightarrow> ('preform, 'var) antecedent list" 
-    and consequent :: "'rule \<Rightarrow> 'preform list" 
+    and ran_fv :: "'subst \<Rightarrow> 'var set" 
+    and anyP :: "'form"
+    and antecedent :: "'rule \<Rightarrow> ('form, 'var) antecedent list" 
+    and consequent :: "'rule \<Rightarrow> 'form list" 
     and rules :: "'rule stream" 
-    and assumptions :: "'preform list" 
-    and conclusions :: "'preform list" +
+    and assumptions :: "'form list" 
+    and conclusions :: "'form list" +
   assumes solved: solved
 begin
 
 text {* Lets get our hand on concrete trees *}
 
-definition ts :: "'form \<Rightarrow> (('form entailment) \<times> ('rule \<times> 'preform) NatRule) tree" where
+definition ts :: "'form \<Rightarrow> (('form entailment) \<times> ('rule \<times> 'form) NatRule) tree" where
   "ts c = (SOME t. snd (fst (root t)) = c \<and> fst (fst (root t)) |\<subseteq>| ass_forms \<and> wf t \<and> tfinite t)"
 
 lemma
@@ -38,20 +37,20 @@ lemma
 text {* To get the list of vertices, build the tree with local freshness first. *}
 
 abbreviation pre_it where
-  "pre_it c \<equiv> to_it (ts (to_form c))"
+  "pre_it c \<equiv> to_it (ts c)"
 
 lemma iwf_pre_it:
   assumes "c \<in> set conclusions"
-  shows "local_iwf (pre_it c) (fst (root (ts (to_form c))))"
+  shows "local_iwf (pre_it c) (fst (root (ts c)))"
   using assms by (auto intro!: iwf_to_it ts_finite ts_wf)
 
-definition vertices :: "('preform, 'var) vertex fset"  where
+definition vertices :: "('form, 'var) vertex fset"  where
   "vertices = Abs_fset (Union ( set (map (\<lambda> c. insert (c, []) ((\<lambda> p. (c, plain_ant c # p)) ` (it_paths (pre_it c))))  conclusions)))"
 
 text {* For the remaining time, work with the tree with global freshness. *}
 
 abbreviation it' where
-  "it' c \<equiv> globalize (to_it (ts (to_form c)))"
+  "it' c \<equiv> globalize (to_it (ts c))"
 
 lemma mem_vertices: "v |\<in>| vertices \<longleftrightarrow>  (fst v \<in> set conclusions \<and> (snd v = [] \<or> snd v \<in> (op # (plain_ant (fst v))) ` it_paths (it' (fst v))))"
   unfolding vertices_def fmember.rep_eq ffUnion.rep_eq 
@@ -81,12 +80,12 @@ using assms by (cases v; rename_tac "is"; case_tac "is"; auto)
 
 lemma global_iwf_it:
   assumes "c \<in> set conclusions"
-  shows "global_iwf (it' c) (fst (root (ts (to_form c))))"
+  shows "global_iwf (it' c) (fst (root (ts c)))"
   using assms by (auto intro!: iwf_to_it globalized ts_finite ts_wf)
 
 text {* Start building the graph *}
 
-fun nodeOf :: "('preform, 'var) vertex \<Rightarrow> ('preform, 'rule) graph_node" where
+fun nodeOf :: "('form, 'var) vertex \<Rightarrow> ('form, 'rule) graph_node" where
   "nodeOf (pf, []) = Conclusion pf"
 | "nodeOf (pf, i#is) = iNodeOf (tree_at (it' pf) is)"
 
@@ -107,13 +106,13 @@ lemma terminal_is_nil[simp]: "v |\<in>| vertices \<Longrightarrow> outPorts (nod
 sublocale Vertex_Graph nodes inPorts outPorts vertices nodeOf.
 
 
-definition edge_from :: "'preform \<Rightarrow> ('preform, 'var) in_port list => (('preform, 'var) vertex \<times> ('preform,'var) out_port)" where 
+definition edge_from :: "'form \<Rightarrow> ('form, 'var) in_port list => (('form, 'var) vertex \<times> ('form,'var) out_port)" where 
   "edge_from c is = ((c, plain_ant c # is),  Reg (iOutPort (tree_at (it' c) is)))"
 
 lemma fst_edge_from[simp]: "fst (edge_from c is) = (c, plain_ant c # is)"
   by (simp add: edge_from_def)
 
-definition edge_to :: "'preform \<Rightarrow> ('preform, 'var) in_port list => (('preform, 'var) vertex \<times> ('preform,'var) in_port)"  where
+definition edge_to :: "'form \<Rightarrow> ('form, 'var) in_port list => (('form, 'var) vertex \<times> ('form,'var) in_port)"  where
  "edge_to c is =
     (case rev is of   []   \<Rightarrow> ((c, []),            plain_ant c)
                     | i#is \<Rightarrow> ((c, plain_ant c # (rev is)), i))"
@@ -124,7 +123,7 @@ lemma edge_to_Nil[simp]: "edge_to c [] = ((c, []), plain_ant c)"
 lemma edge_to_Snoc[simp]: "edge_to c (is@[i]) = ((c, plain_ant c # is), i)"
   by (simp add: edge_to_def)
 
-definition edge_at :: "'preform \<Rightarrow> ('preform, 'var) in_port list => ('preform, 'var) edge''"  where
+definition edge_at :: "'form \<Rightarrow> ('form, 'var) in_port list => ('form, 'var) edge''"  where
    "edge_at c i = (edge_from c i, edge_to c i)"
 
 lemma fst_edge_at[simp]: "fst (edge_at c i) = edge_from c i" by (simp add: edge_at_def)
@@ -138,11 +137,11 @@ lemma pre_hyps_exist:
   shows "subst s (freshen i anyP) \<in> hyps_along (pre_it c) is"
 proof-
   from assms(1)
-  have "local_iwf (pre_it c) (fst (root (ts (to_form c))))" by (rule iwf_pre_it)
+  have "local_iwf (pre_it c) (fst (root (ts c)))" by (rule iwf_pre_it)
   moreover
   note assms(2,3)
   moreover
-  have "fst (fst (root (ts (to_form c)))) |\<subseteq>| ass_forms"
+  have "fst (fst (root (ts c))) |\<subseteq>| ass_forms"
     by (simp add: assms(1) ts_context)
   ultimately
   show ?thesis by (rule iwf_hyps_exist)
@@ -155,11 +154,11 @@ lemma hyps_exist':
   shows "subst s (freshen i anyP) \<in> hyps_along (it' c) is"
 proof-
   from assms(1)
-  have "global_iwf (it' c) (fst (root (ts (to_form c))))" by (rule global_iwf_it)
+  have "global_iwf (it' c) (fst (root (ts c)))" by (rule global_iwf_it)
   moreover
   note assms(2,3)
   moreover
-  have "fst (fst (root (ts (to_form c)))) |\<subseteq>| ass_forms"
+  have "fst (fst (root (ts c))) |\<subseteq>| ass_forms"
     by (simp add: assms(1) ts_context)
   ultimately
   show ?thesis by (rule iwf_hyps_exist)
@@ -251,7 +250,7 @@ by (cases "is" rule: rev_cases) auto
 lemma in_set_inits[simp]: "is' \<in> set (inits is) \<longleftrightarrow> prefixeq is' is"
   by (induction "is'" arbitrary: "is"; case_tac "is"; auto)
 
-definition terminal_path_from :: "'preform \<Rightarrow> ('preform, 'var) in_port list => ('preform, 'var) edge'' list" where
+definition terminal_path_from :: "'form \<Rightarrow> ('form, 'var) in_port list => ('form, 'var) edge'' list" where
    "terminal_path_from c is = map (edge_at c) (rev (inits is))"
 
 lemma terminal_path_from_Nil[simp]:
@@ -392,14 +391,14 @@ lemma hyps_free_path_length:
   shows "length pth + length (snd v') = length (snd v)"
 using assms by induction (auto elim!: edge_step )
 
-sublocale Instantiation inPorts outPorts nodeOf hyps fv ran_fv closed anyP nodes edges vertices labelsIn labelsOut pre_fv subst freshen inst..
+sublocale Instantiation inPorts outPorts nodeOf hyps  nodes edges vertices labelsIn labelsOut freshenV rename fv subst  ran_fv anyP inst..
 
 lemma fidx_iAnnot:
   shows "is \<in> it_paths (it' c) \<Longrightarrow> iAnnot (tree_at (it' c) is) = fidx vertices (c, plain_ant c # is)"
   and "iAnnot (it' c) = fidx vertices (c, [plain_ant c])"
 sorry
 
-sublocale Tasked_Proof_Graph freshen fv ran_fv closed anyP subst pre_fv antecedent consequent fresh_vars rules assumptions conclusions
+sublocale Tasked_Proof_Graph freshenV rename fv subst  ran_fv anyP antecedent consequent fresh_vars rules assumptions conclusions
   vertices nodeOf edges inst
 proof
   fix v\<^sub>1 p\<^sub>1 v\<^sub>2 p\<^sub>2 p'
@@ -517,13 +516,11 @@ proof
       have "labelAtOut v\<^sub>1 p\<^sub>1 = subst (iSubst ?t') (freshen (fidx vertices v\<^sub>1) (iOutPort ?t'))"
         using regular_edge Nil by (simp add: labelAtOut_def edge_at_def edge_from_def)
       also have "fidx vertices v\<^sub>1 = iAnnot ?t'" by (simp add: fidx_iAnnot Nil)
-      also have "subst (iSubst ?t') (freshen (iAnnot ?t') (iOutPort ?t')) = snd (fst (tree.root (ts (to_form c))))"
+      also have "subst (iSubst ?t') (freshen (iAnnot ?t') (iOutPort ?t')) = snd (fst (root (ts c)))"
         unfolding iwf_subst_freshen_outPort[OF global_iwf_it[OF `c \<in> set conclusions`]]..
-      also have "\<dots> = to_form c" using `c \<in> set conclusions` by (simp add: ts_conc)
-      also have "\<dots> = subst undefined (freshen (fidx vertices (c, [])) c)"
-        using  `c \<in> set conclusions` by (simp add: closed_eq[OF conclusions_closed])
+      also have "\<dots> = c" using `c \<in> set conclusions` by (simp add: ts_conc)
       also have "\<dots> = labelAtIn v\<^sub>2 p\<^sub>2"
-        using regular_edge Nil by (simp add: labelAtIn_def edge_at_def)
+        using  `c \<in> set conclusions`  regular_edge Nil by (simp add: labelAtIn_def edge_at_def)
       finally show ?thesis.
     next
       case (snoc is' i)

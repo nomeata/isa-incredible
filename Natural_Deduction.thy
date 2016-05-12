@@ -34,15 +34,15 @@ begin
 end
 
 locale ND_Rules_Inst =
-  Abstract_Formulas freshen pre_fv fv subst ran_fv closed
-  for freshen :: "nat \<Rightarrow> 'preform \<Rightarrow> 'form" 
-  and pre_fv :: "'preform \<Rightarrow> 'var set" 
-  and fv :: "'form \<Rightarrow> 'var annotated set" 
-  and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" 
-  and ran_fv :: "'subst \<Rightarrow> 'var annotated set" 
-  and closed :: "'preform \<Rightarrow> bool" +
+  Abstract_Formulas freshenV rename fv subst ran_fv anyP
+   for freshenV :: "nat \<Rightarrow> 'var \<Rightarrow> 'var" 
+    and rename :: "('var \<Rightarrow> 'var) \<Rightarrow> 'form \<Rightarrow> 'form" 
+    and fv :: "'form \<Rightarrow> 'var set" 
+    and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" 
+    and ran_fv :: "'subst \<Rightarrow> 'var set" 
+    and anyP :: "'form" +
 
-  fixes nat_rule :: "'rule \<Rightarrow> 'preform \<Rightarrow> ('preform, 'var) antecedent fset \<Rightarrow> bool"
+  fixes nat_rule :: "'rule \<Rightarrow> 'form \<Rightarrow> ('form, 'var) antecedent fset \<Rightarrow> bool"
   and rules :: "'rule stream"
 begin
 
@@ -75,7 +75,7 @@ begin
   definition n_rules where
     "n_rules = flat (smap (\<lambda>r. map (\<lambda>c. (r,c)) (consequent r)) rules)"
   
-  sublocale ND_Rules_Inst _ _ _ _ _ _ _ natEff_Inst n_rules ..
+  sublocale ND_Rules_Inst _ _ _ _ _ _ natEff_Inst n_rules ..
 
   definition solved where
     "solved \<longleftrightarrow> (\<forall> c. c |\<in>| conc_forms \<longrightarrow> (\<exists> \<Gamma> t. fst (root t) = (\<Gamma> \<turnstile> c) \<and> \<Gamma> |\<subseteq>| ass_forms \<and> wf t \<and> tfinite t))"

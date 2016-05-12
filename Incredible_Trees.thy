@@ -29,12 +29,12 @@ text {*
 Tree-shape, but incredible-graph-like content (port names, explicit annotation and substitution)
 *}
 
-datatype ('preform,'rule,'subst,'var)  itree =
-    INode (iNodeOf': "('preform, 'rule) graph_node")
-          (iOutPort': "'preform reg_out_port")
+datatype ('form,'rule,'subst,'var)  itree =
+    INode (iNodeOf': "('form, 'rule) graph_node")
+          (iOutPort': "'form reg_out_port")
           (iAnnot: "nat")
           (iSubst: "'subst")
-          (iAnts': "('preform, 'var) in_port \<rightharpoonup> ('preform,'rule,'subst,'var) itree")
+          (iAnts': "('form, 'var) in_port \<rightharpoonup> ('form,'rule,'subst,'var) itree")
   | HNode (iAnnot: "nat")
           (iSubst: "'subst")
 
@@ -53,12 +53,12 @@ fun iOutPort where
  | "iOutPort (HNode i s) = anyP"
 end
 
-type_synonym ('preform, 'rule, 'subst, 'form) fresh_check = "('preform, 'rule) graph_node \<Rightarrow> nat \<Rightarrow> 'subst \<Rightarrow> 'form entailment \<Rightarrow> bool"
+type_synonym ('form, 'rule, 'subst) fresh_check = "('form, 'rule) graph_node \<Rightarrow> nat \<Rightarrow> 'subst \<Rightarrow> 'form entailment \<Rightarrow> bool"
 
 context  Abstract_Task
 begin
 
-  inductive iwf :: "('preform, 'rule, 'subst, 'form) fresh_check \<Rightarrow> ('preform,'rule,'subst,'var) itree \<Rightarrow> 'form entailment \<Rightarrow> bool"
+  inductive iwf :: "('form, 'rule, 'subst) fresh_check \<Rightarrow> ('form,'rule,'subst,'var) itree \<Rightarrow> 'form entailment \<Rightarrow> bool"
     for fc
     where
     iwf: "\<lbrakk>
@@ -68,7 +68,7 @@ begin
           (\<exists> t. ants ip = Some t \<and>
               iwf fc t ((\<lambda> h . subst s (freshen i (labelsOut n h))) |`| hyps_for n ip |\<union>| \<Gamma> \<turnstile> subst s (freshen i (labelsIn n ip))));
        fc n i s (\<Gamma> \<turnstile> c);
-       c = subst s (freshen i (labelsOut n (Reg p :: (('preform, 'var) out_port))))
+       c = subst s (freshen i (labelsOut n (Reg p :: (('form, 'var) out_port))))
       \<rbrakk> \<Longrightarrow> iwf fc (INode n p i s ants) (\<Gamma> \<turnstile> c)"  
   | iwfH: "\<lbrakk>
        c |\<notin>| ass_forms;
@@ -83,7 +83,7 @@ lemma iwf_subst_freshen_outPort:
 
 
 
-  inductive local_fresh_check :: "('preform, 'rule, 'subst, 'form) fresh_check" where
+  inductive local_fresh_check :: "('form, 'rule, 'subst) fresh_check" where
     "\<lbrakk>\<And> ip f. ip |\<in>| inPorts n  \<Longrightarrow> f |\<in>| \<Gamma> \<Longrightarrow> freshenV i ` (local_vars n ip) \<inter> fv f = {};
       \<And> ip. ip |\<in>| inPorts n  \<Longrightarrow> freshenV i ` (local_vars n ip) \<inter> ran_fv s = {}
      \<rbrakk> \<Longrightarrow> local_fresh_check n i s (\<Gamma> \<turnstile> c)"
@@ -92,7 +92,7 @@ lemma iwf_subst_freshen_outPort:
   
   
 lemma build_local_iwf:
-  fixes t :: "('form entailment \<times> ('rule \<times> 'preform) NatRule) tree"
+  fixes t :: "('form entailment \<times> ('rule \<times> 'form) NatRule) tree"
   assumes "tfinite t"
   assumes "wf t"
   shows "\<exists> it. local_iwf it (fst (root t))"
@@ -113,27 +113,26 @@ proof(induction)
   from `eff _ _ _`
   show ?case               
   proof(cases rule: eff.cases[case_names Axiom NatRule Cut])
-  case (Axiom con \<Gamma>)
+  case (Axiom c \<Gamma>)
     show ?thesis
-    proof (cases "con |\<in>| ass_forms")
+    proof (cases "c |\<in>| ass_forms")
       case True (* Global assumption *)
-      then obtain c :: "'preform" where
-        "c \<in> set assumptions" and [simp]: "subst undefined (freshen undefined c) = con"
-        by (auto simp add:  ass_forms_def)
+      then  have "c \<in> set assumptions"  by (auto simp add:  ass_forms_def)
 
-      let "?it" = "INode (Assumption c) c undefined undefined empty ::  ('preform, 'rule, 'subst, 'var) itree"
+      let "?it" = "INode (Assumption c) c undefined undefined empty ::  ('form, 'rule, 'subst, 'var) itree"
 
       from `c \<in> set assumptions`
-      have "local_iwf ?it (\<Gamma> \<turnstile> con)" by (auto intro!: iwf local_fresh_check.intros)
+      have "local_iwf ?it (\<Gamma> \<turnstile> c)" by (auto intro!: iwf local_fresh_check.intros)
+
       thus ?thesis unfolding Axiom..
     next
       case False
-      obtain s where [simp]: "subst s (freshen undefined anyP) = con" by atomize_elim (rule anyP_is_any)
+      obtain s where [simp]: "subst s (freshen undefined anyP) = c" by atomize_elim (rule anyP_is_any)
   
-      let "?it" = "HNode undefined s ::  ('preform, 'rule, 'subst, 'var) itree"
+      let "?it" = "HNode undefined s ::  ('form, 'rule, 'subst, 'var) itree"
   
-      from  `con |\<in>| \<Gamma>` False
-      have "local_iwf ?it (\<Gamma> \<turnstile> con)" by (auto intro: iwfH)
+      from  `c |\<in>| \<Gamma>` False
+      have "local_iwf ?it (\<Gamma> \<turnstile> c)" by (auto intro: iwfH)
       thus ?thesis unfolding Axiom..
     qed
   next
@@ -149,7 +148,7 @@ proof(induction)
       and to_t_root: "\<And> ant. ant |\<in>| ants \<Longrightarrow>  fst (root (to_t ant)) = ((\<lambda>p. subst s (freshen i p)) |`| a_hyps ant |\<union>| \<Gamma> \<turnstile> subst s (freshen i (a_conc ant)))"
       by auto
 
-    let "?it" = "INode (Rule (fst rule)) c i s (\<lambda> ant. if ant |\<in>| ants then Some (its (to_t ant)) else None) ::  ('preform, 'rule, 'subst, 'var) itree"
+    let "?it" = "INode (Rule (fst rule)) c i s (\<lambda> ant. if ant |\<in>| ants then Some (its (to_t ant)) else None) ::  ('form, 'rule, 'subst, 'var) itree"
 
     from `snd (root t) \<in> R`
     have "fst rule \<in> sset rules"
@@ -188,7 +187,7 @@ proof(induction)
     
     from `t' |\<in>| cont t` obtain "it'" where "local_iwf it' (\<Gamma> \<turnstile> con)" using IH by force
 
-    let "?it" = "INode Helper anyP undefined s (empty(plain_ant anyP \<mapsto> it')) ::  ('preform, 'rule, 'subst, 'var) itree"
+    let "?it" = "INode Helper anyP undefined s (empty(plain_ant anyP \<mapsto> it')) ::  ('form, 'rule, 'subst, 'var) itree"
 
     from `local_iwf it' (\<Gamma> \<turnstile> con)`
     have "local_iwf ?it (\<Gamma> \<turnstile> con)" by (auto intro!: iwf local_fresh_check.intros)
@@ -196,7 +195,7 @@ proof(induction)
   qed 
 qed
 
-definition to_it :: "('form entailment \<times> ('rule \<times> 'preform) NatRule) tree \<Rightarrow> ('preform,'rule,'subst,'var) itree" where
+definition to_it :: "('form entailment \<times> ('rule \<times> 'form) NatRule) tree \<Rightarrow> ('form,'rule,'subst,'var) itree" where
   "to_it t = (SOME it. local_iwf it (fst (root t)))"
 
 lemma iwf_to_it:
@@ -205,13 +204,13 @@ lemma iwf_to_it:
 unfolding to_it_def using build_local_iwf[OF assms] by (rule someI2_ex)
 
 
-inductive it_pathsP :: "('preform,'rule,'subst,'var) itree \<Rightarrow> ('preform, 'var) in_port list \<Rightarrow> bool"  where
+inductive it_pathsP :: "('form,'rule,'subst,'var) itree \<Rightarrow> ('form, 'var) in_port list \<Rightarrow> bool"  where
    it_paths_Nil: "it_pathsP t []"
  | it_paths_Cons: "i |\<in>| inPorts (iNodeOf t) \<Longrightarrow> iAnts t i = Some t' \<Longrightarrow> it_pathsP t' is \<Longrightarrow> it_pathsP t (i#is)"
 
 inductive_cases it_pathP_ConsE: "it_pathsP t (i#is)"
 
-definition it_paths:: "('preform,'rule,'subst,'var) itree \<Rightarrow> ('preform, 'var) in_port list set"  where
+definition it_paths:: "('form,'rule,'subst,'var) itree \<Rightarrow> ('form, 'var) in_port list set"  where
   "it_paths t = Collect (it_pathsP t)"
 
  lemma it_paths_eq [pred_set_conv]: "it_pathsP t = (\<lambda>x. x \<in> it_paths t)"
@@ -238,7 +237,7 @@ lemma finite_it_paths[simp]: "finite (it_paths t)"
   by (induction t) (rule finite_subset[OF it_paths_Union], fastforce split: option.split intro: range_eqI)+
 end
 
-fun tree_at :: "('preform,'rule,'subst,'var) itree \<Rightarrow> ('preform, 'var) in_port list \<Rightarrow> ('preform,'rule,'subst,'var) itree" where
+fun tree_at :: "('form,'rule,'subst,'var) itree \<Rightarrow> ('form, 'var) in_port list \<Rightarrow> ('form,'rule,'subst,'var) itree" where
   "tree_at t [] = t"
 | "tree_at t (i#is) = tree_at (the (iAnts t i)) is"
 
@@ -276,8 +275,8 @@ using assms it_paths_prefix  prefixI by fastforce
 end
 
 
-type_synonym ('preform, 'var) vertex = "('preform \<times> ('preform, 'var) in_port list)"
-type_synonym ('preform, 'var) edge'' = "(('preform, 'var) vertex, 'preform, 'var) edge'"
+type_synonym ('form, 'var) vertex = "('form \<times> ('form, 'var) in_port list)"
+type_synonym ('form, 'var) edge'' = "(('form, 'var) vertex, 'form, 'var) edge'"
 
 context Abstract_Task
 begin
@@ -309,24 +308,6 @@ end
 
 context Abstract_Task
 begin
-
-abbreviation to_form :: "'preform \<Rightarrow> 'form" where
-  "to_form pf \<equiv> subst undefined (freshen undefined pf)"
-
-lemma to_form_conc_forms[simp]: "to_form a |\<in>| conc_forms \<longleftrightarrow> a \<in> set conclusions"
-proof
-  assume "a \<in> set conclusions"
-  thus "to_form a |\<in>| conc_forms" by (rule subst_freshen_in_conc_formsI)
-next
-  assume "to_form a |\<in>| conc_forms"
-  then obtain a' where "a' \<in> set conclusions" and "to_form a = to_form a'"
-    by (auto simp add: conc_forms_def)
-  thus "a \<in> set conclusions" using conclusions_closed closed_eq by metis
-qed
-
-definition preform_of_closed_form :: "'form \<Rightarrow> 'preform" where
-  "preform_of_closed_form f = (SOME pf. subst undefined (freshen undefined pf) = f)"
-
 
 lemma iNodeOf_outPorts:
   "iwf fc t ent \<Longrightarrow> x \<in> it_paths t \<Longrightarrow> outPorts (iNodeOf (tree_at t x)) = {||} \<Longrightarrow> False"
@@ -477,7 +458,7 @@ proof-
   show ?thesis by blast
 qed
 
-fun fv_entailment :: "'form entailment \<Rightarrow> 'var annotated set" where
+fun fv_entailment :: "'form entailment \<Rightarrow> 'var set" where
   "fv_entailment (\<Gamma> \<turnstile> c) = Union (fv ` fset \<Gamma>) \<union> fv c"
 
 definition hyp_port_for' where
@@ -567,12 +548,12 @@ lemma in_set_inits[simp]: "is' \<in> set (inits is) \<longleftrightarrow> prefix
   is either in the conclusion of the rule, or created by this rule.
   *}
 
-  inductive global_fresh_check :: "('preform, 'rule, 'subst, 'form) fresh_check" where
+  inductive global_fresh_check :: "('form, 'rule, 'subst) fresh_check" where
     "ran_fv s \<subseteq> fv_entailment (\<Gamma> \<turnstile> c) \<union> range (freshenV i) \<Longrightarrow> global_fresh_check n i s (\<Gamma> \<turnstile> c)"
 
   abbreviation "global_iwf \<equiv> iwf global_fresh_check"
 
-  definition globalize :: "('preform,'rule,'subst,'var) itree \<Rightarrow> ('preform,'rule,'subst,'var) itree" where
+  definition globalize :: "('form,'rule,'subst,'var) itree \<Rightarrow> ('form,'rule,'subst,'var) itree" where
     "globalize = undefined"
 
 

@@ -439,15 +439,20 @@ locale Well_Shaped_Graph =  Well_Scoped_Graph + Acyclic_Graph + Saturated_Graph 
 
 locale Labeled_Signature = 
   Port_Graph_Signature_Scoped +
-  fixes labelsIn :: "'node \<Rightarrow> 'inPort \<Rightarrow> 'preform" 
-  fixes labelsOut :: "'node \<Rightarrow> 'outPort \<Rightarrow> 'preform" 
+  fixes labelsIn :: "'node \<Rightarrow> 'inPort \<Rightarrow> 'form" 
+  fixes labelsOut :: "'node \<Rightarrow> 'outPort \<Rightarrow> 'form" 
 
 locale Instantiation =
   Vertex_Graph nodes _ _ vertices _ +
   Labeled_Signature nodes  _ _ _ labelsIn labelsOut +
-  Abstract_Formulas freshen pre_fv _ subst
-  for nodes :: "'node stream" and edges :: "('vertex, 'outPort, 'inPort) edge set" and vertices :: "'vertex fset" and labelsIn :: "'node \<Rightarrow> 'inPort \<Rightarrow> 'preform" and labelsOut :: "'node \<Rightarrow> 'outPort \<Rightarrow> 'preform" 
-  and pre_fv :: "'preform \<Rightarrow> 'var set" and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" and freshen :: "nat \<Rightarrow> 'preform \<Rightarrow> 'form" +
+  Abstract_Formulas freshenV rename fv subst ran_fv anyP
+  for nodes :: "'node stream" and edges :: "('vertex, 'outPort, 'inPort) edge set" and vertices :: "'vertex fset" and labelsIn :: "'node \<Rightarrow> 'inPort \<Rightarrow> 'form" and labelsOut :: "'node \<Rightarrow> 'outPort \<Rightarrow> 'form" 
+  and  freshenV :: "nat \<Rightarrow> 'var \<Rightarrow> 'var" 
+    and rename :: "('var \<Rightarrow> 'var) \<Rightarrow> 'form \<Rightarrow> 'form" 
+    and fv :: "'form \<Rightarrow> 'var set" 
+    and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" 
+    and ran_fv :: "'subst \<Rightarrow> 'var set" 
+    and anyP :: "'form" +
   fixes inst :: "'vertex \<Rightarrow> 'subst"
 begin
   definition labelAtIn :: "'vertex \<Rightarrow> 'inPort \<Rightarrow> 'form"  where
@@ -457,7 +462,7 @@ begin
 end
 
 locale Solution =
-  Instantiation _ _ _ _ _ _ _ _ _ edges for edges :: "(('vertex \<times> 'outPort) \<times> 'vertex \<times> 'inPort) set" +
+  Instantiation _ _ _ _ _ edges for edges :: "(('vertex \<times> 'outPort) \<times> 'vertex \<times> 'inPort) set" +
   assumes solved: "((v\<^sub>1,p\<^sub>1),(v\<^sub>2,p\<^sub>2)) \<in> edges \<Longrightarrow> labelAtOut v\<^sub>1 p\<^sub>1 = labelAtIn v\<^sub>2 p\<^sub>2"
 
 locale Proof_Graph =  Well_Shaped_Graph + Solution
@@ -465,30 +470,35 @@ locale Proof_Graph =  Well_Shaped_Graph + Solution
 
 locale Port_Graph_Signature_Scoped_Vars =
   Port_Graph_Signature nodes inPorts outPorts +
-  Abstract_Formulas freshen pre_fv _ subst
+  Abstract_Formulas freshenV rename fv subst ran_fv anyP
   for nodes :: "'node stream" and inPorts :: "'node \<Rightarrow> 'inPort fset"  and outPorts :: "'node \<Rightarrow> 'outPort fset"
-  and pre_fv :: "'preform \<Rightarrow> 'var set" and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" and freshen :: "nat \<Rightarrow> 'preform \<Rightarrow> 'form" +
+  and  freshenV :: "nat \<Rightarrow> 'var \<Rightarrow> 'var" 
+    and rename :: "('var \<Rightarrow> 'var) \<Rightarrow> 'form \<Rightarrow> 'form" 
+    and fv :: "'form \<Rightarrow> 'var set" 
+    and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" 
+    and ran_fv :: "'subst \<Rightarrow> 'var set" 
+    and anyP :: "'form" +
+
   fixes local_vars :: "'node \<Rightarrow> 'inPort \<Rightarrow> 'var set"
 
 locale Well_Scoped_Instantiation =
    Pre_Port_Graph  nodes inPorts outPorts vertices nodeOf edges +
-   Instantiation  inPorts outPorts nodeOf hyps fv ran_fv closed anyP nodes edges vertices labelsIn labelsOut pre_fv subst freshen inst +
-   Port_Graph_Signature_Scoped_Vars fv ran_fv closed anyP nodes  inPorts outPorts pre_fv subst freshen local_vars
-   for inPorts :: "'node \<Rightarrow> 'inPort fset" 
+   Instantiation  inPorts outPorts nodeOf hyps nodes edges  vertices labelsIn labelsOut freshenV rename fv subst ran_fv anyP inst +
+   Port_Graph_Signature_Scoped_Vars nodes inPorts outPorts freshenV rename fv subst ran_fv anyP local_vars
+   for freshenV :: "nat \<Rightarrow> 'var \<Rightarrow> 'var" 
+    and rename :: "('var \<Rightarrow> 'var) \<Rightarrow> 'form \<Rightarrow> 'form" 
+    and fv :: "'form \<Rightarrow> 'var set" 
+    and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" 
+    and ran_fv :: "'subst \<Rightarrow> 'var set" 
+    and anyP :: "'form"
+    and inPorts :: "'node \<Rightarrow> 'inPort fset" 
     and outPorts :: "'node \<Rightarrow> 'outPort fset" 
     and nodeOf :: "'vertex \<Rightarrow> 'node" 
     and hyps :: "'node \<Rightarrow> 'outPort \<Rightarrow> 'inPort option" 
-    and fv :: "'form \<Rightarrow> 'var annotated set" 
-    and ran_fv :: "'subst \<Rightarrow> 'var annotated set" 
-    and closed :: "'preform \<Rightarrow> bool" 
-    and anyP  :: "'preform" 
     and nodes :: "'node stream" 
     and vertices :: "'vertex fset" 
-    and labelsIn :: "'node \<Rightarrow> 'inPort \<Rightarrow> 'preform" 
-    and labelsOut :: "'node \<Rightarrow> 'outPort \<Rightarrow> 'preform" 
-    and pre_fv :: "'preform \<Rightarrow> 'var set" 
-    and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" 
-    and freshen :: "nat \<Rightarrow> 'preform \<Rightarrow> 'form" 
+    and labelsIn :: "'node \<Rightarrow> 'inPort \<Rightarrow> 'form" 
+    and labelsOut :: "'node \<Rightarrow> 'outPort \<Rightarrow> 'form" 
     and inst :: "'vertex \<Rightarrow> 'subst" 
     and edges :: "('vertex, 'outPort, 'inPort) edge set" 
     and local_vars :: "'node \<Rightarrow> 'inPort \<Rightarrow> 'var set" +
@@ -503,44 +513,42 @@ begin
     using well_scoped_inst by auto
 end
   
-
 locale Scoped_Proof_Graph =
-  Instantiation  inPorts outPorts nodeOf hyps fv ran_fv closed anyP nodes edges vertices labelsIn labelsOut pre_fv subst freshen inst  +
+  Instantiation  inPorts outPorts nodeOf hyps nodes edges  vertices labelsIn labelsOut freshenV rename fv subst ran_fv anyP inst +
   Well_Shaped_Graph  nodes inPorts outPorts vertices nodeOf edges hyps  +
-  Solution inPorts outPorts nodeOf hyps fv ran_fv closed anyP nodes vertices labelsIn labelsOut pre_fv subst freshen inst edges +
-  Well_Scoped_Instantiation inPorts outPorts nodeOf hyps fv ran_fv closed anyP nodes vertices labelsIn labelsOut pre_fv subst freshen inst edges local_vars
-   for inPorts :: "'node \<Rightarrow> 'inPort fset" 
+  Solution inPorts outPorts nodeOf hyps nodes vertices  labelsIn labelsOut freshenV rename fv subst ran_fv anyP inst edges +
+  Well_Scoped_Instantiation  freshenV rename fv subst ran_fv anyP inPorts outPorts nodeOf hyps  nodes vertices labelsIn labelsOut inst edges local_vars
+   for freshenV :: "nat \<Rightarrow> 'var \<Rightarrow> 'var" 
+    and rename :: "('var \<Rightarrow> 'var) \<Rightarrow> 'form \<Rightarrow> 'form" 
+    and fv :: "'form \<Rightarrow> 'var set" 
+    and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" 
+    and ran_fv :: "'subst \<Rightarrow> 'var set" 
+    and anyP :: "'form"
+    and inPorts :: "'node \<Rightarrow> 'inPort fset" 
     and outPorts :: "'node \<Rightarrow> 'outPort fset" 
     and nodeOf :: "'vertex \<Rightarrow> 'node" 
     and hyps :: "'node \<Rightarrow> 'outPort \<Rightarrow> 'inPort option" 
-    and fv :: "'form \<Rightarrow> 'var annotated set" 
-    and ran_fv :: "'subst \<Rightarrow> 'var annotated set" 
-    and closed :: "'preform \<Rightarrow> bool" 
-    and anyP :: "'preform" 
     and nodes :: "'node stream" 
     and vertices :: "'vertex fset" 
-    and labelsIn :: "'node \<Rightarrow> 'inPort \<Rightarrow> 'preform" 
-    and labelsOut :: "'node \<Rightarrow> 'outPort \<Rightarrow> 'preform" 
-    and pre_fv :: "'preform \<Rightarrow> 'var set" 
-    and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" 
-    and freshen :: "nat \<Rightarrow> 'preform \<Rightarrow> 'form" 
+    and labelsIn :: "'node \<Rightarrow> 'inPort \<Rightarrow> 'form" 
+    and labelsOut :: "'node \<Rightarrow> 'outPort \<Rightarrow> 'form" 
     and inst :: "'vertex \<Rightarrow> 'subst" 
     and edges :: "('vertex, 'outPort, 'inPort) edge  set" 
     and local_vars :: "'node \<Rightarrow> 'inPort \<Rightarrow> 'var set"
 
 
-datatype ('preform, 'rule) graph_node = Assumption 'preform | Conclusion 'preform | Rule 'rule | Helper
+datatype ('form, 'rule) graph_node = Assumption 'form | Conclusion 'form | Rule 'rule | Helper
 
-type_synonym ('preform, 'var) in_port = "('preform, 'var) antecedent"
-type_synonym 'preform reg_out_port = "'preform"
-type_synonym 'preform hyp = "'preform"
-datatype ('preform, 'var) out_port = Reg "'preform reg_out_port" | Hyp "'preform hyp" "('preform, 'var) in_port"
-type_synonym ('v, 'preform, 'var) edge' = "(('v \<times> ('preform, 'var) out_port) \<times> ('v \<times> ('preform, 'var) in_port))"
+type_synonym ('form, 'var) in_port = "('form, 'var) antecedent"
+type_synonym 'form reg_out_port = "'form"
+type_synonym 'form hyp = "'form"
+datatype ('form, 'var) out_port = Reg "'form reg_out_port" | Hyp "'form hyp" "('form, 'var) in_port"
+type_synonym ('v, 'form, 'var) edge' = "(('v \<times> ('form, 'var) out_port) \<times> ('v \<times> ('form, 'var) in_port))"
 
 
 context Abstract_Task
 begin
-  definition nodes :: "('preform, 'rule) graph_node stream" where
+  definition nodes :: "('form, 'rule) graph_node stream" where
     "nodes = Helper ## shift (map Assumption assumptions) (shift (map Conclusion conclusions) (smap Rule rules))"
 
   lemma Helper_in_nodes[simp]:
@@ -583,7 +591,7 @@ begin
      "hyps (Rule r) (Hyp h a) = (if a |\<in>| f_antecedent r \<and> h |\<in>| a_hyps a then Some a else None)"
    | "hyps _ _ = None"
 
-  fun local_vars :: "('preform, 'rule) graph_node \<Rightarrow> ('preform, 'var) in_port \<Rightarrow> 'var set"  where
+  fun local_vars :: "('form, 'rule) graph_node \<Rightarrow> ('form, 'var) in_port \<Rightarrow> 'var set"  where
      "local_vars _ a = a_fresh a"
 
 
@@ -605,27 +613,26 @@ begin
 end
 
 locale Tasked_Proof_Graph =
-  Abstract_Task  freshen pre_fv fv subst ran_fv closed anyP antecedent consequent rules assumptions conclusions  +
-  Scoped_Proof_Graph inPorts outPorts nodeOf hyps fv ran_fv closed anyP nodes vertices labelsIn labelsOut pre_fv subst freshen inst edges local_vars
-  for freshen :: "nat \<Rightarrow> 'preform \<Rightarrow> 'form" 
-    and fv :: "'form \<Rightarrow> 'var annotated set" 
-    and ran_fv :: "'subst \<Rightarrow> 'var annotated set" 
-    and closed :: "'preform \<Rightarrow> bool"
-    and anyP :: "'preform"
+  Abstract_Task freshenV rename fv subst ran_fv anyP  antecedent consequent rules assumptions conclusions  +
+  Scoped_Proof_Graph freshenV rename fv subst ran_fv anyP  inPorts outPorts nodeOf hyps nodes vertices labelsIn labelsOut inst edges local_vars
+   for freshenV :: "nat \<Rightarrow> 'var \<Rightarrow> 'var" 
+    and rename :: "('var \<Rightarrow> 'var) \<Rightarrow> 'form \<Rightarrow> 'form" 
+    and fv :: "'form \<Rightarrow> 'var set" 
     and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" 
-    and pre_fv :: "'preform \<Rightarrow> 'var set" 
+    and ran_fv :: "'subst \<Rightarrow> 'var set" 
+    and anyP :: "'form"
 
-    and antecedent :: "'rule \<Rightarrow> ('preform, 'var) antecedent list" 
-    and consequent :: "'rule \<Rightarrow> 'preform list" 
+    and antecedent :: "'rule \<Rightarrow> ('form, 'var) antecedent list" 
+    and consequent :: "'rule \<Rightarrow> 'form list" 
     and fresh_vars :: "'rule \<Rightarrow> 'var set"
     and rules :: "'rule stream" 
 
-    and assumptions :: "'preform list" 
-    and conclusions :: "'preform list" 
+    and assumptions :: "'form list" 
+    and conclusions :: "'form list" 
 
     and vertices :: "'vertex fset" 
-    and nodeOf :: "'vertex \<Rightarrow> ('preform, 'rule) graph_node" 
-    and edges :: "('vertex, 'preform, 'var) edge' set" 
+    and nodeOf :: "'vertex \<Rightarrow> ('form, 'rule) graph_node" 
+    and edges :: "('vertex, 'form, 'var) edge' set" 
     and inst :: "'vertex \<Rightarrow> 'subst"  +
   assumes conclusions_present: "set (map Conclusion conclusions) \<subseteq> nodeOf ` fset vertices"
 
