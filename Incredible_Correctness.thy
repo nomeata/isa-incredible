@@ -200,8 +200,8 @@ case (wf v p pth)
     have "f \<in> set (consequent r)" by (simp add: f_consequent_def)
     hence "natEff_Inst (r, f) f (f_antecedent r)" 
       by (rule natEff_Inst.intros)
-    hence "eff (NatRule (r, f)) (?\<Gamma> \<turnstile> subst (inst v') (freshen (fidx vertices v') f))
-           ((\<lambda>ant. ((\<lambda>p. subst (inst v') (freshen (fidx vertices v') p)) |`| a_hyps ant |\<union>| ?\<Gamma> \<turnstile> subst (inst v') (freshen (fidx vertices v') (a_conc ant)))) |`| f_antecedent r)" 
+    hence "eff (NatRule (r, f)) (?\<Gamma> \<turnstile> subst (inst v') (freshen (vidx v') f))
+           ((\<lambda>ant. ((\<lambda>p. subst (inst v') (freshen (vidx v') p)) |`| a_hyps ant |\<union>| ?\<Gamma> \<turnstile> subst (inst v') (freshen (vidx v') (a_conc ant)))) |`| f_antecedent r)" 
            (is "eff _ _ ?ants")
     proof (rule eff.intros)
       fix ant f
@@ -210,7 +210,7 @@ case (wf v p pth)
       have "valid_in_port (v',ant)" by (simp add: Rule)
 
       assume "f |\<in>| ?\<Gamma>"
-      thus "freshenV (fidx vertices v') ` a_fresh ant \<inter> fv f = {}" 
+      thus "freshenV (vidx v') ` a_fresh ant \<inter> fv f = {}" 
       proof(induct rule: hyps_alongE)
         case (Hyp v'' p'' h'')
 
@@ -220,23 +220,22 @@ case (wf v p pth)
         from `terminal_path v' t ?pth'` Hyp(1)
         have "v'' \<notin> scope (v', ant)" by (rule hyps_free_path_not_in_scope)
         with `valid_in_port (v',ant)` `v'' |\<in>| vertices`
-        have "freshenV (fidx vertices v') ` local_vars (nodeOf v') ant \<inter> ran_fv (inst v'') = {}"
+        have "freshenV (vidx v') ` local_vars (nodeOf v') ant \<inter> ran_fv (inst v'') = {}"
          by (rule out_of_scope)
         moreover
         from hyps_free_vertices_distinct'[OF `terminal_path v' t ?pth'`] Hyp.hyps(1)
         have "v'' \<noteq> v'" by (metis distinct.simps(2) fst_conv image_eqI list.set_map)
-        hence "fidx vertices v'' \<noteq> fidx vertices v'" using `v' |\<in>| vertices` `v'' |\<in>| vertices` by simp
-        hence "freshenV (fidx vertices v') ` a_fresh ant \<inter> freshenV (fidx vertices v'') ` fv (labelsOut (nodeOf v'') h'') = {}"
-          by (auto simp add: freshenV_eq_iff)
+        hence "vidx v'' \<noteq> vidx v'" using `v' |\<in>| vertices` `v'' |\<in>| vertices` by (meson vidx_inj inj_onD notin_fset)
+        hence "freshenV (vidx v') ` a_fresh ant \<inter> freshenV (vidx v'') ` fv (labelsOut (nodeOf v'') h'') = {}"by auto
         moreover
-        have "fv f \<subseteq> fv (freshen (fidx vertices v'') (labelsOut (nodeOf v'') h'')) \<union> ran_fv (inst v'') " using `f = _`
+        have "fv f \<subseteq> fv (freshen (vidx v'') (labelsOut (nodeOf v'') h'')) \<union> ran_fv (inst v'') " using `f = _`
           by (simp add: labelAtOut_def fv_subst)
         ultimately
         show ?thesis 
           by (fastforce simp add: fv_freshen)
       next
         case (Assumption v pf)
-        hence "f = subst (inst v) (freshen (fidx vertices v) pf)" by (simp add: labelAtOut_def)
+        hence "f = subst (inst v) (freshen (vidx v) pf)" by (simp add: labelAtOut_def)
         moreover
         from Assumption have "Assumption pf \<in> sset nodes" using valid_nodes by (auto simp add: fmember.rep_eq)
         hence "pf \<in> set assumptions" unfolding nodes_def by (auto simp add: stream.set_map)
@@ -255,12 +254,12 @@ case (wf v p pth)
       moreover
       hence "v' \<notin> scope (v', ant)" by (rule scopes_not_refl)
       ultimately
-      have "freshenV (fidx vertices v') ` local_vars (nodeOf v') ant \<inter> ran_fv (inst v') = {}"
+      have "freshenV (vidx v') ` local_vars (nodeOf v') ant \<inter> ran_fv (inst v') = {}"
         by (rule out_of_scope)
-      thus "freshenV (fidx vertices v') ` a_fresh ant \<inter> ran_fv (inst v') = {}" by simp
+      thus "freshenV (vidx v') ` a_fresh ant \<inter> ran_fv (inst v') = {}" by simp
     qed
     also
-    have "subst (inst v') (freshen (fidx vertices v') f) = labelAtOut v' p'" using Rule by (simp add: labelAtOut_def)
+    have "subst (inst v') (freshen (vidx v') f) = labelAtOut v' p'" using Rule by (simp add: labelAtOut_def)
     also
     note `labelAtOut v' p' = labelAtIn v p`
     also

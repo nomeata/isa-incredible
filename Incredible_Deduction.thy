@@ -4,7 +4,6 @@ imports
   "~~/src/HOL/Library/FSet"
   "~~/src/HOL/Library/Stream"
   Abstract_Formula
-  Indexed_FSet
 begin
 
 locale Port_Graph_Signature =
@@ -453,12 +452,14 @@ locale Instantiation =
     and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" 
     and ran_fv :: "'subst \<Rightarrow> 'var set" 
     and anyP :: "'form" +
-  fixes inst :: "'vertex \<Rightarrow> 'subst"
+  fixes vidx :: "'vertex \<Rightarrow> nat"
+    and inst :: "'vertex \<Rightarrow> 'subst"
+  assumes vidx_inj: "inj_on vidx (fset vertices)"
 begin
   definition labelAtIn :: "'vertex \<Rightarrow> 'inPort \<Rightarrow> 'form"  where
-    "labelAtIn v p = subst (inst v) (freshen (fidx vertices v) (labelsIn (nodeOf v) p))"
+    "labelAtIn v p = subst (inst v) (freshen (vidx v) (labelsIn (nodeOf v) p))"
   definition labelAtOut :: "'vertex \<Rightarrow> 'outPort \<Rightarrow> 'form"  where
-    "labelAtOut v p = subst (inst v) (freshen (fidx vertices v) (labelsOut (nodeOf v) p))"
+    "labelAtOut v p = subst (inst v) (freshen (vidx v) (labelsOut (nodeOf v) p))"
 end
 
 locale Solution =
@@ -483,7 +484,7 @@ locale Port_Graph_Signature_Scoped_Vars =
 
 locale Well_Scoped_Instantiation =
    Pre_Port_Graph  nodes inPorts outPorts vertices nodeOf edges +
-   Instantiation  inPorts outPorts nodeOf hyps nodes edges  vertices labelsIn labelsOut freshenV rename fv subst ran_fv anyP inst +
+   Instantiation  inPorts outPorts nodeOf hyps nodes edges  vertices labelsIn labelsOut freshenV rename fv subst ran_fv anyP vidx inst +
    Port_Graph_Signature_Scoped_Vars nodes inPorts outPorts freshenV rename fv subst ran_fv anyP local_vars
    for freshenV :: "nat \<Rightarrow> 'var \<Rightarrow> 'var" 
     and rename :: "('var \<Rightarrow> 'var) \<Rightarrow> 'form \<Rightarrow> 'form" 
@@ -499,6 +500,7 @@ locale Well_Scoped_Instantiation =
     and vertices :: "'vertex fset" 
     and labelsIn :: "'node \<Rightarrow> 'inPort \<Rightarrow> 'form" 
     and labelsOut :: "'node \<Rightarrow> 'outPort \<Rightarrow> 'form" 
+    and vidx :: "'vertex \<Rightarrow> nat" 
     and inst :: "'vertex \<Rightarrow> 'subst" 
     and edges :: "('vertex, 'outPort, 'inPort) edge set" 
     and local_vars :: "'node \<Rightarrow> 'inPort \<Rightarrow> 'var set" +
@@ -506,18 +508,18 @@ locale Well_Scoped_Instantiation =
     "valid_in_port (v,p) \<Longrightarrow>
      var \<in> local_vars (nodeOf v) p \<Longrightarrow>
      v' |\<in>| vertices \<Longrightarrow>
-     freshenV (fidx vertices v) var \<in> ran_fv (inst v') \<Longrightarrow>
+     freshenV (vidx v) var \<in> ran_fv (inst v') \<Longrightarrow>
      v' \<in> scope (v,p)"
 begin
-  lemma out_of_scope: "valid_in_port (v,p) \<Longrightarrow> v' |\<in>| vertices \<Longrightarrow> v' \<notin> scope (v,p) \<Longrightarrow> freshenV (fidx vertices v) ` local_vars (nodeOf v) p \<inter> ran_fv (inst v') = {}"
+  lemma out_of_scope: "valid_in_port (v,p) \<Longrightarrow> v' |\<in>| vertices \<Longrightarrow> v' \<notin> scope (v,p) \<Longrightarrow> freshenV (vidx v) ` local_vars (nodeOf v) p \<inter> ran_fv (inst v') = {}"
     using well_scoped_inst by auto
 end
   
 locale Scoped_Proof_Graph =
-  Instantiation  inPorts outPorts nodeOf hyps nodes edges  vertices labelsIn labelsOut freshenV rename fv subst ran_fv anyP inst +
+  Instantiation  inPorts outPorts nodeOf hyps nodes edges  vertices labelsIn labelsOut freshenV rename fv subst ran_fv anyP vidx inst +
   Well_Shaped_Graph  nodes inPorts outPorts vertices nodeOf edges hyps  +
-  Solution inPorts outPorts nodeOf hyps nodes vertices  labelsIn labelsOut freshenV rename fv subst ran_fv anyP inst edges +
-  Well_Scoped_Instantiation  freshenV rename fv subst ran_fv anyP inPorts outPorts nodeOf hyps  nodes vertices labelsIn labelsOut inst edges local_vars
+  Solution inPorts outPorts nodeOf hyps nodes vertices  labelsIn labelsOut freshenV rename fv subst ran_fv anyP vidx inst edges +
+  Well_Scoped_Instantiation  freshenV rename fv subst ran_fv anyP inPorts outPorts nodeOf hyps  nodes vertices labelsIn labelsOut vidx inst edges local_vars
    for freshenV :: "nat \<Rightarrow> 'var \<Rightarrow> 'var" 
     and rename :: "('var \<Rightarrow> 'var) \<Rightarrow> 'form \<Rightarrow> 'form" 
     and fv :: "'form \<Rightarrow> 'var set" 
@@ -532,6 +534,7 @@ locale Scoped_Proof_Graph =
     and vertices :: "'vertex fset" 
     and labelsIn :: "'node \<Rightarrow> 'inPort \<Rightarrow> 'form" 
     and labelsOut :: "'node \<Rightarrow> 'outPort \<Rightarrow> 'form" 
+    and vidx :: "'vertex \<Rightarrow> nat" 
     and inst :: "'vertex \<Rightarrow> 'subst" 
     and edges :: "('vertex, 'outPort, 'inPort) edge  set" 
     and local_vars :: "'node \<Rightarrow> 'inPort \<Rightarrow> 'var set"
@@ -614,7 +617,7 @@ end
 
 locale Tasked_Proof_Graph =
   Abstract_Task freshenV rename fv subst ran_fv anyP  antecedent consequent rules assumptions conclusions  +
-  Scoped_Proof_Graph freshenV rename fv subst ran_fv anyP  inPorts outPorts nodeOf hyps nodes vertices labelsIn labelsOut inst edges local_vars
+  Scoped_Proof_Graph freshenV rename fv subst ran_fv anyP  inPorts outPorts nodeOf hyps nodes vertices labelsIn labelsOut vidx inst edges local_vars
    for freshenV :: "nat \<Rightarrow> 'var \<Rightarrow> 'var" 
     and rename :: "('var \<Rightarrow> 'var) \<Rightarrow> 'form \<Rightarrow> 'form" 
     and fv :: "'form \<Rightarrow> 'var set" 
@@ -633,6 +636,7 @@ locale Tasked_Proof_Graph =
     and vertices :: "'vertex fset" 
     and nodeOf :: "'vertex \<Rightarrow> ('form, 'rule) graph_node" 
     and edges :: "('vertex, 'form, 'var) edge' set" 
+    and vidx :: "'vertex \<Rightarrow> nat"
     and inst :: "'vertex \<Rightarrow> 'subst"  +
   assumes conclusions_present: "set (map Conclusion conclusions) \<subseteq> nodeOf ` fset vertices"
 
