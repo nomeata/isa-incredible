@@ -26,9 +26,10 @@ begin
   definition freshenV :: "nat \<Rightarrow> 'var \<Rightarrow>  'var annotated" where "freshenV a v = (v,a)"
   lemma fv_freshen: "fv (freshen a pf) = freshenV a ` pre_fv pf"
     using freshenV_def fv_freshen' by auto
-  lemma freshenV_eq_iff: "freshenV a v = freshenV a' v' \<longleftrightarrow> a = a' \<and> v = v'"
+  lemma freshenV_eq_iff[simp]: "freshenV a v = freshenV a' v' \<longleftrightarrow> a = a' \<and> v = v'"
     by (auto simp add: freshenV_def)
-
+  lemma freshenV_range_eq_iff[simp]: "freshenV a v \<in> range (freshenV a') \<longleftrightarrow> a = a'"
+    by auto
 end
 
 datatype ('preform, 'var) antecedent =

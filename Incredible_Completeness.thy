@@ -57,6 +57,9 @@ lemma mem_vertices: "v |\<in>| vertices \<longleftrightarrow>  (fst v \<in> set 
   unfolding vertices_def fmember.rep_eq ffUnion.rep_eq 
   by (cases v)(auto simp add: Abs_fset_inverse Bex_def it_paths_globalize)
 
+lemma prefixeq_vertices: "(c,is) |\<in>| vertices \<Longrightarrow> prefixeq is' is \<Longrightarrow> (c, is') |\<in>| vertices"
+  by (cases is') (auto simp add: mem_vertices intro!: imageI elim: it_paths_prefixeq)
+
 lemma none_vertices[simp]: "(c, []) |\<in>| vertices \<longleftrightarrow> c \<in> set conclusions"
   by (simp add: mem_vertices)
 
@@ -394,7 +397,6 @@ sublocale Instantiation inPorts outPorts nodeOf hyps fv ran_fv closed anyP nodes
 lemma fidx_iAnnot:
   shows "is \<in> it_paths (it' c) \<Longrightarrow> iAnnot (tree_at (it' c) is) = fidx vertices (c, plain_ant c # is)"
   and "iAnnot (it' c) = fidx vertices (c, [plain_ant c])"
-
 sorry
 
 sublocale Tasked_Proof_Graph freshen fv ran_fv closed anyP subst pre_fv antecedent consequent fresh_vars rules assumptions conclusions
@@ -573,10 +575,44 @@ proof
 
   fix v p var v'
   assume "valid_in_port (v, p)"
+  then obtain c "is" where "v = (c,is)" by (cases v, auto)
+
+  from `valid_in_port (v, p)` `v= _`
+  have "(c,is) |\<in>| vertices" by simp
+  hence "c \<in> set conclusions" by (simp add: mem_vertices)
+
   assume "var \<in> local_vars (nodeOf v) p"
+  hence "var \<in> a_fresh p" by simp
+  hence fresh_not_self: "freshenV (fidx vertices v) var \<notin> ran_fv (inst v')" sorry
+
+  assume "v' |\<in>| vertices"
+  then obtain c' is' where "v' = (c',is')" by (cases v', auto)
+
+  
   assume "freshenV (fidx vertices v) var \<in> ran_fv (inst v')"
-  show "v' \<in> scope (v, p)"
+  also have "ran_fv (inst v') \<subseteq> Union ((\<lambda> is''. range (freshenV (fidx vertices (c', is'')))) ` set (inits is'))"
     sorry
+  finally obtain is'' where "prefixeq is'' is'"  and "fidx vertices (c,is) = fidx vertices (c', is'')"
+    by (auto simp add: `v=_`)
+
+  from `prefixeq is'' is'` `v' |\<in>| vertices` `v' = _`
+  have "(c',is'') |\<in>| vertices" using prefixeq_vertices by metis
+  with `(c,is) |\<in>| vertices` `fidx vertices (c,is) = fidx vertices (c', is'')`
+  have "c' = c" and "is'' = is" by auto
+
+  have "prefixeq (is @ [p]) is'" sorry
+
+  have "is' \<noteq> []" sorry
+  with `v' |\<in>| vertices` `v' = _`
+  obtain is'' where
+    "is' = plain_ant c' # is''"  and "is'' \<in> it_paths (it' c')"
+      by (auto elim: vertices_cases)
+
+  from `c \<in> set conclusions`  `is'' \<in> it_paths (it' c')` `prefixeq (is @ [p]) is'`
+  have "scope' v p v'"
+  unfolding `v=_` `v'=_` `c' = _` `is' = _`
+    by (auto intro!: scope'.intros)
+  thus "v' \<in> scope (v, p)" using `valid_in_port (v, p)` by (simp add: in_scope)
   next
 
   show "set (map Conclusion conclusions) \<subseteq> nodeOf ` fset vertices"

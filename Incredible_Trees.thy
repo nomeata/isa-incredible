@@ -84,7 +84,7 @@ lemma iwf_subst_freshen_outPort:
 
 
   inductive local_fresh_check :: "('preform, 'rule, 'subst, 'form) fresh_check" where
-    "\<lbrakk>\<And> ip. ip |\<in>| inPorts n  \<Longrightarrow> f |\<in>| \<Gamma> \<Longrightarrow> freshenV i ` (local_vars n ip) \<inter> fv f = {};
+    "\<lbrakk>\<And> ip f. ip |\<in>| inPorts n  \<Longrightarrow> f |\<in>| \<Gamma> \<Longrightarrow> freshenV i ` (local_vars n ip) \<inter> fv f = {};
       \<And> ip. ip |\<in>| inPorts n  \<Longrightarrow> freshenV i ` (local_vars n ip) \<inter> ran_fv s = {}
      \<rbrakk> \<Longrightarrow> local_fresh_check n i s (\<Gamma> \<turnstile> c)"
 
@@ -176,11 +176,7 @@ proof(induction)
     note NatRule(5,6)
     ultimately
     have "local_iwf ?it ((\<Gamma> \<turnstile> subst s (freshen i c)))"
-      apply -
-      apply (intro iwf local_fresh_check.intros)
-      apply auto
-      apply blast
-      done
+      by (intro iwf local_fresh_check.intros) auto
     thus ?thesis unfolding NatRule..
   next
   case (Cut \<Gamma> con)
@@ -270,6 +266,13 @@ proof-
   show ?thesis
     by(induction is' arbitrary: t) (auto elim!: it_paths_ConsE intro!: it_paths_intros)
 qed
+
+lemma it_paths_prefixeq:
+  assumes "is \<in> it_paths t"
+  assumes "prefixeq is' is"
+  shows "is' \<in> it_paths t"
+using assms it_paths_prefix  prefixI by fastforce
+
 end
 
 
