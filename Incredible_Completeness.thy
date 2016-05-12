@@ -629,7 +629,7 @@ proof
   } thus ?thesis by auto
   qed
   
-oops
+qed
     
 
 end
