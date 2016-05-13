@@ -391,20 +391,21 @@ lemma hyps_free_path_length:
   shows "length pth + length (snd v') = length (snd v)"
 using assms by induction (auto elim!: edge_step )
 
-sublocale Instantiation inPorts outPorts nodeOf hyps  nodes edges vertices labelsIn labelsOut freshenV rename fv subst  ran_fv anyP "fidx vertices" inst
+fun vidx :: "('form, 'var) vertex \<Rightarrow> nat" where
+  "vidx (c, []) = fidx conc_forms c"
+ |"vidx (c, _#is) = iAnnot (tree_at (it' c) is)"
+
+lemma vidx_inj: "inj_on vidx (fset vertices)"
+  sorry
+
+
+sublocale Instantiation inPorts outPorts nodeOf hyps  nodes edges vertices labelsIn labelsOut freshenV rename fv subst  ran_fv anyP vidx inst
 proof
-  show "inj_on (fidx vertices) (fset vertices)"
-    by (auto intro: inj_onI simp: fmember.rep_eq)
+  show "inj_on vidx (fset vertices)" by (rule vidx_inj)
 qed
 
-
-lemma fidx_iAnnot:
-  shows "is \<in> it_paths (it' c) \<Longrightarrow> iAnnot (tree_at (it' c) is) = fidx vertices (c, plain_ant c # is)"
-  and "iAnnot (it' c) = fidx vertices (c, [plain_ant c])"
-sorry
-
 sublocale Tasked_Proof_Graph freshenV rename fv subst  ran_fv anyP antecedent consequent fresh_vars rules assumptions conclusions
-  vertices nodeOf edges "fidx vertices" inst
+  vertices nodeOf edges vidx inst
 proof
   fix v\<^sub>1 p\<^sub>1 v\<^sub>2 p\<^sub>2 p'
   assume assms: "((v\<^sub>1, p\<^sub>1), (v\<^sub>2, p\<^sub>2)) \<in> edges" "hyps (nodeOf v\<^sub>1) p\<^sub>1 = Some p'"
@@ -518,9 +519,9 @@ proof
     proof(cases "is" rule:rev_cases)
       case Nil
       let "?t'" = "it' c"
-      have "labelAtOut v\<^sub>1 p\<^sub>1 = subst (iSubst ?t') (freshen (fidx vertices v\<^sub>1) (iOutPort ?t'))"
+      have "labelAtOut v\<^sub>1 p\<^sub>1 = subst (iSubst ?t') (freshen (vidx v\<^sub>1) (iOutPort ?t'))"
         using regular_edge Nil by (simp add: labelAtOut_def edge_at_def edge_from_def)
-      also have "fidx vertices v\<^sub>1 = iAnnot ?t'" by (simp add: fidx_iAnnot Nil)
+      also have "vidx v\<^sub>1 = iAnnot ?t'" by (simp add:  Nil)
       also have "subst (iSubst ?t') (freshen (iAnnot ?t') (iOutPort ?t')) = snd (fst (root (ts c)))"
         unfolding iwf_subst_freshen_outPort[OF global_iwf_it[OF `c \<in> set conclusions`]]..
       also have "\<dots> = c" using `c \<in> set conclusions` by (simp add: ts_conc)
@@ -531,15 +532,13 @@ proof
       case (snoc is' i)
       let "?t1" = "tree_at (it' c) (is'@[i])"
       let "?t2" = "tree_at (it' c) is'"
-      have "labelAtOut v\<^sub>1 p\<^sub>1 = subst (iSubst ?t1) (freshen (fidx vertices v\<^sub>1) (iOutPort ?t1))"
+      have "labelAtOut v\<^sub>1 p\<^sub>1 = subst (iSubst ?t1) (freshen (vidx v\<^sub>1) (iOutPort ?t1))"
         using regular_edge snoc by (simp add: labelAtOut_def edge_at_def edge_from_def)
-      also have "fidx vertices v\<^sub>1 = iAnnot ?t1" using snoc regular_edge(3)
-        by (simp add: fidx_iAnnot)
+      also have "vidx v\<^sub>1 = iAnnot ?t1" using snoc regular_edge(3) by simp
       also have "subst (iSubst ?t1) (freshen (iAnnot ?t1) (iOutPort ?t1)) = subst (iSubst ?t2) (freshen (iAnnot ?t2) (a_conc i))"
         by (rule iwf_edge_match[OF global_iwf_it[OF `c \<in> set conclusions`] `is \<in> it_paths (it' c)`[unfolded snoc]])
-      also have "iAnnot ?t2 = (fidx vertices (c, plain_ant c # is'))"
-         using snoc regular_edge(3) by (auto elim: it_path_SnocE simp add:fidx_iAnnot )
-      also have "subst (iSubst ?t2) (freshen (fidx vertices (c, plain_ant c # is')) (a_conc i)) = labelAtIn v\<^sub>2 p\<^sub>2"
+      also have "iAnnot ?t2 = vidx (c, plain_ant c # is')" by simp
+      also have "subst (iSubst ?t2) (freshen (vidx (c, plain_ant c # is')) (a_conc i)) = labelAtIn v\<^sub>2 p\<^sub>2"
         using regular_edge snoc by (simp add: labelAtIn_def edge_at_def)
       finally show ?thesis.
   qed
@@ -560,16 +559,12 @@ proof
     hence [simp]: "v\<^sub>1 = (c, plain_ant c # ?his)" by (simp add: hyp_edge_from_def)
 
 
-    have "labelAtOut v\<^sub>1 p\<^sub>1 = subst (iSubst ?t1) (freshen (fidx vertices v\<^sub>1) (labelsOut (iNodeOf ?t1) ?h))"
+    have "labelAtOut v\<^sub>1 p\<^sub>1 = subst (iSubst ?t1) (freshen (vidx v\<^sub>1) (labelsOut (iNodeOf ?t1) ?h))"
       using hyp_edge by (simp add: hyp_edge_at_def hyp_edge_from_def labelAtOut_def)
-    also have "fidx vertices v\<^sub>1 = iAnnot ?t1"
-      by (simp add: fidx_iAnnot hyp_port_it_paths[OF `is \<in> it_paths (it' c)` `?f \<in> hyps_along (it' c) is`])
+    also have "vidx v\<^sub>1 = iAnnot ?t1" by simp
     also have "subst (iSubst ?t1) (freshen (iAnnot ?t1) (labelsOut (iNodeOf ?t1) ?h)) = ?f" using `?f \<in> hyps_along (it' c) is` by (rule local.hyp_port_eq[symmetric])
-    also have "\<dots> = subst (iSubst ?t2) (freshen (iAnnot ?t2) anyP)"
-      using hyp_edge by simp
-    also have "iAnnot ?t2 = (fidx vertices (c, plain_ant c # is))"
-      by (rule fidx_iAnnot)(rule `is \<in> it_paths (it' c)`)
-    also have "subst (iSubst ?t2) (freshen (fidx vertices (c, plain_ant c # is)) anyP) = labelAtIn v\<^sub>2 p\<^sub>2"
+    also have "\<dots> = subst (iSubst ?t2) (freshen (iAnnot ?t2) anyP)"  using hyp_edge by simp
+    also have "subst (iSubst ?t2) (freshen (iAnnot ?t2) anyP) = labelAtIn v\<^sub>2 p\<^sub>2"
         using hyp_edge by (simp add: labelAtIn_def  hyp_edge_at_def hyp_edge_to_def)
     finally show ?thesis.
   qed
@@ -591,16 +586,17 @@ proof
   then obtain c' is' where "v' = (c',is')" by (cases v', auto)
 
   
-  assume "freshenV (fidx vertices v) var \<in> ran_fv (inst v')"
-  also have "ran_fv (inst v') \<subseteq> Union ((\<lambda> is''. range (freshenV (fidx vertices (c', is'')))) ` set (inits is'))"
+  assume "freshenV (vidx v) var \<in> ran_fv (inst v')"
+  also have "ran_fv (inst v') \<subseteq> Union ((\<lambda> is''. range (freshenV (vidx (c', is'')))) ` set (inits is'))"
     sorry
-  finally obtain is'' where "prefixeq is'' is'"  and "fidx vertices (c,is) = fidx vertices (c', is'')"
+  finally obtain is'' where "prefixeq is'' is'"  and "vidx (c,is) = vidx (c', is'')"
     by (auto simp add: `v=_`)
 
   from `prefixeq is'' is'` `v' |\<in>| vertices` `v' = _`
   have "(c',is'') |\<in>| vertices" using prefixeq_vertices by metis
-  with `(c,is) |\<in>| vertices` `fidx vertices (c,is) = fidx vertices (c', is'')`
-  have "c' = c" and "is'' = is" by auto
+
+  from `(c',is'') |\<in>| vertices` `(c,is) |\<in>| vertices` `vidx (c,is) = vidx (c', is'')`
+  have "c' = c" and "is'' = is"  by (auto dest: Fun.inj_onD[OF vidx_inj] simp add: fmember.rep_eq)
 
   have "prefixeq (is @ [p]) is'" sorry
 
