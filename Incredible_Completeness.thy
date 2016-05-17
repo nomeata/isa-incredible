@@ -92,7 +92,7 @@ fun nodeOf :: "'form vertex \<Rightarrow> ('form, 'rule) graph_node" where
 | "nodeOf (pf, i#is) = iNodeOf (tree_at (it' pf) is)"
 
 fun inst where
-  "inst (c,[]) = undefined"
+  "inst (c,[]) = empty_subst"
  |"inst (c, i#is) = iSubst (tree_at (it' c) is)" 
 
 
@@ -560,7 +560,8 @@ proof
         unfolding iwf_subst_freshen_outPort[OF global_iwf_it[OF `c \<in> set conclusions`]]..
       also have "\<dots> = c" using `c \<in> set conclusions` by (simp add: ts_conc)
       also have "\<dots> = labelAtIn v\<^sub>2 p\<^sub>2"
-        using  `c \<in> set conclusions`  regular_edge Nil by (simp add: labelAtIn_def edge_at_def)
+        using  `c \<in> set conclusions`  regular_edge Nil
+        by (simp add: labelAtIn_def edge_at_def freshen_closed conclusions_closed closed_no_lconsts)
       finally show ?thesis.
     next
       case (snoc is' i)
@@ -614,20 +615,41 @@ proof
   from `valid_in_port (v, p)` `v= _`
   have "(c,is) |\<in>| vertices"  and "p |\<in>| inPorts (nodeOf (c, is))" by simp_all
   hence "c \<in> set conclusions" by (simp add: mem_vertices)
-
+  
   from `p |\<in>| _` obtain i where
     "i < length (inPorts' (nodeOf (c, is)))" and
     "p = inPorts' (nodeOf (c, is)) ! i" by (auto simp add: inPorts_fset_of in_set_conv_nth)
   hence "p = in_port_at (c, is) i" by (cases "is") auto
 
-
-  assume "var \<in> local_vars (nodeOf v) p"
-  hence "var \<in> a_fresh p" by simp
-  hence fresh_not_self: "freshenLC (fidx vertices v) var \<notin> subst_lconsts (inst v')" sorry
-
   assume "v' |\<in>| vertices"
   then obtain c' is' where "v' = (c',is')" by (cases v', auto)
 
+  assume "var \<in> local_vars (nodeOf v) p"
+  hence "var \<in> a_fresh p" by simp
+
+  thm iwf_local_not_in_subst[OF local_iwf_it[OF `c \<in> set conclusions`]]
+
+  hence fresh_not_self: "freshenLC (vidx v) var \<notin> subst_lconsts (inst v)"
+  proof(cases "is")
+    case Nil thus ?thesis by (simp add: `v=_`)
+  next
+    case (Cons i is'')
+
+    from `valid_in_port (v, p)` `v= _` Cons
+    have  "i=0" "is'' \<in> it_paths (it' c)" by auto
+
+    from  `p |\<in>| inPorts (nodeOf (c, is))`
+    have "p |\<in>| inPorts (iNodeOf (tree_at (it' c) is''))"
+      by (simp add:  `v= _` Cons)
+
+    from iwf_local_not_in_subst[OF
+        local_iwf_it[OF `c \<in> set conclusions`]
+        `is'' \<in> it_paths (it' c)`
+        `p |\<in>| inPorts (iNodeOf (tree_at (it' c) is''))`
+        `var \<in> a_fresh p`
+        ]
+    show ?thesis by (simp add: `v= _` Cons)
+  qed
   
   assume "freshenLC (vidx v) var \<in> subst_lconsts (inst v')"
   also have "subst_lconsts (inst v') \<subseteq> Union ((\<lambda> is''. range (freshenLC (vidx (c', is'')))) ` set (inits is'))"
@@ -640,6 +662,14 @@ proof
 
   from `(c',is'') |\<in>| vertices` `(c,is) |\<in>| vertices` `vidx (c,is) = vidx (c', is'')`
   have "c' = c" and "is'' = is"  by (auto dest: Fun.inj_onD[OF vidx_inj] simp add: fmember.rep_eq)
+
+  from `freshenLC (vidx v) var \<in> subst_lconsts (inst v')`
+       `freshenLC (vidx v) var \<notin> subst_lconsts (inst v)`
+  have "v \<noteq> v'" by auto
+  hence "is' \<noteq> is''" by (simp add: `is'' = is` `c' = c` `v = _` `v' = _`)
+  with `prefixeq is'' is'` `is'' = is`
+  have "prefix is is'" by simp
+    
 
   have "prefixeq (is @ [i]) is'" sorry
 

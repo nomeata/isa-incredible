@@ -23,10 +23,22 @@ locale Abstract_Formulas =
   assumes rename_rename: "renameLCs p1 (renameLCs p2 f) = renameLCs (p1 \<circ> p2) f"
   assumes rename_subst: "renameLCs p (subst s f) = subst (subst_renameLCs p s) (renameLCs p f)"
   assumes lconsts_anyP: "lconsts anyP = {}"
+  assumes empty_subst: "\<exists> s. (\<forall> f. subst s f = f) \<and> subst_lconsts s = {}"
   assumes anyP_is_any: "\<exists> s. subst s anyP = f"
 begin
   definition freshen :: "nat \<Rightarrow> 'form \<Rightarrow> 'form" where
     "freshen n = renameLCs (freshenLC n)"
+
+  definition empty_subst :: "'subst" where
+    "empty_subst = (SOME s. (\<forall> f. subst s f = f) \<and> subst_lconsts s = {})"
+
+  lemma empty_subst_spec:
+    "(\<forall> f. subst empty_subst f = f) \<and> subst_lconsts empty_subst = {}"
+    unfolding empty_subst_def using empty_subst by (rule someI_ex)
+  lemma subst_empty_subst[simp]: "subst empty_subst f = f"
+    by (metis empty_subst_spec)
+  lemma subst_lconsts_empty_subst[simp]: "subst_lconsts empty_subst = {}"
+    by (metis empty_subst_spec)
 
   lemma lconsts_freshen: "lconsts (freshen a f) = freshenLC a ` lconsts f"
     unfolding freshen_def by (rule lconsts_renameLCs)

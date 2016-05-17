@@ -204,6 +204,20 @@ lemma iwf_length_inPorts:
   apply (auto elim!: it_paths_ConsE dest: list_all2_lengthD list_all2_nthD2)
   done
 
+lemma iwf_local_not_in_subst:
+  assumes "local_iwf t ent"
+  assumes "is \<in> it_paths t"
+  assumes "p |\<in>| inPorts (iNodeOf (tree_at t is))"
+  assumes "var \<in> a_fresh p"
+  shows "freshenLC (iAnnot (tree_at t is)) var \<notin> subst_lconsts (iSubst (tree_at t is))"
+  using assms
+  apply (induction arbitrary: "is" rule: iwf.induct)
+  apply (case_tac "is")
+  apply (auto elim!: it_paths_ConsE dest: list_all2_lengthD list_all2_nthD2 elim!: local_fresh_check.cases)
+  apply blast
+  done
+  
+
 lemma iwf_length_inPorts_not_HNode:
   assumes "iwf fc t ent"
   assumes "is \<in> it_paths t"
