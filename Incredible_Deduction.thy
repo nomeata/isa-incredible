@@ -69,7 +69,7 @@ begin
   lemma path_snoc: "path v v' (pth1@[e]) \<longleftrightarrow> e \<in> edges \<and> path v (edge_begin e) pth1 \<and> edge_end e = v'"
     by (auto simp add: path_split2 path_cons_simp edge_end_tup edge_begin_tup)
 
-  inductive_set scope for ps where
+  inductive_set scope :: "'v \<times> 'inPort \<Rightarrow> 'v set" for ps where
     "v |\<in>| vertices \<Longrightarrow> (\<And> pth v'.  path v v' pth \<Longrightarrow> terminal_vertex v' \<Longrightarrow> ps \<in> snd ` set pth)
     \<Longrightarrow> v \<in> scope ps"
 
@@ -444,13 +444,14 @@ locale Labeled_Signature =
 locale Instantiation =
   Vertex_Graph nodes _ _ vertices _ +
   Labeled_Signature nodes  _ _ _ labelsIn labelsOut +
-  Abstract_Formulas freshenV rename fv subst ran_fv anyP
+  Abstract_Formulas freshenLC renameLCs lconsts closed subst subst_lconsts anyP
   for nodes :: "'node stream" and edges :: "('vertex, 'outPort, 'inPort) edge set" and vertices :: "'vertex fset" and labelsIn :: "'node \<Rightarrow> 'inPort \<Rightarrow> 'form" and labelsOut :: "'node \<Rightarrow> 'outPort \<Rightarrow> 'form" 
-  and  freshenV :: "nat \<Rightarrow> 'var \<Rightarrow> 'var" 
-    and rename :: "('var \<Rightarrow> 'var) \<Rightarrow> 'form \<Rightarrow> 'form" 
-    and fv :: "'form \<Rightarrow> 'var set" 
+  and  freshenLC :: "nat \<Rightarrow> 'var \<Rightarrow> 'var" 
+    and renameLCs :: "('var \<Rightarrow> 'var) \<Rightarrow> 'form \<Rightarrow> 'form" 
+    and lconsts :: "'form \<Rightarrow> 'var set" 
+    and closed :: "'form \<Rightarrow> bool"
     and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" 
-    and ran_fv :: "'subst \<Rightarrow> 'var set" 
+    and subst_lconsts :: "'subst \<Rightarrow> 'var set" 
     and anyP :: "'form" +
   fixes vidx :: "'vertex \<Rightarrow> nat"
     and inst :: "'vertex \<Rightarrow> 'subst"
@@ -471,26 +472,28 @@ locale Proof_Graph =  Well_Shaped_Graph + Solution
 
 locale Port_Graph_Signature_Scoped_Vars =
   Port_Graph_Signature nodes inPorts outPorts +
-  Abstract_Formulas freshenV rename fv subst ran_fv anyP
+  Abstract_Formulas freshenLC renameLCs lconsts closed subst subst_lconsts anyP
   for nodes :: "'node stream" and inPorts :: "'node \<Rightarrow> 'inPort fset"  and outPorts :: "'node \<Rightarrow> 'outPort fset"
-  and  freshenV :: "nat \<Rightarrow> 'var \<Rightarrow> 'var" 
-    and rename :: "('var \<Rightarrow> 'var) \<Rightarrow> 'form \<Rightarrow> 'form" 
-    and fv :: "'form \<Rightarrow> 'var set" 
+  and  freshenLC :: "nat \<Rightarrow> 'var \<Rightarrow> 'var" 
+    and renameLCs :: "('var \<Rightarrow> 'var) \<Rightarrow> 'form \<Rightarrow> 'form" 
+    and lconsts :: "'form \<Rightarrow> 'var set" 
+    and closed :: "'form \<Rightarrow> bool"
     and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" 
-    and ran_fv :: "'subst \<Rightarrow> 'var set" 
+    and subst_lconsts :: "'subst \<Rightarrow> 'var set" 
     and anyP :: "'form" +
 
   fixes local_vars :: "'node \<Rightarrow> 'inPort \<Rightarrow> 'var set"
 
 locale Well_Scoped_Instantiation =
    Pre_Port_Graph  nodes inPorts outPorts vertices nodeOf edges +
-   Instantiation  inPorts outPorts nodeOf hyps nodes edges  vertices labelsIn labelsOut freshenV rename fv subst ran_fv anyP vidx inst +
-   Port_Graph_Signature_Scoped_Vars nodes inPorts outPorts freshenV rename fv subst ran_fv anyP local_vars
-   for freshenV :: "nat \<Rightarrow> 'var \<Rightarrow> 'var" 
-    and rename :: "('var \<Rightarrow> 'var) \<Rightarrow> 'form \<Rightarrow> 'form" 
-    and fv :: "'form \<Rightarrow> 'var set" 
+   Instantiation  inPorts outPorts nodeOf hyps nodes edges  vertices labelsIn labelsOut freshenLC renameLCs lconsts closed subst subst_lconsts anyP vidx inst +
+   Port_Graph_Signature_Scoped_Vars nodes inPorts outPorts freshenLC renameLCs lconsts closed subst subst_lconsts anyP local_vars
+   for freshenLC :: "nat \<Rightarrow> 'var \<Rightarrow> 'var" 
+    and renameLCs :: "('var \<Rightarrow> 'var) \<Rightarrow> 'form \<Rightarrow> 'form" 
+    and lconsts :: "'form \<Rightarrow> 'var set" 
+    and closed :: "'form \<Rightarrow> bool"
     and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" 
-    and ran_fv :: "'subst \<Rightarrow> 'var set" 
+    and subst_lconsts :: "'subst \<Rightarrow> 'var set" 
     and anyP :: "'form"
     and inPorts :: "'node \<Rightarrow> 'inPort fset" 
     and outPorts :: "'node \<Rightarrow> 'outPort fset" 
@@ -508,23 +511,24 @@ locale Well_Scoped_Instantiation =
     "valid_in_port (v,p) \<Longrightarrow>
      var \<in> local_vars (nodeOf v) p \<Longrightarrow>
      v' |\<in>| vertices \<Longrightarrow>
-     freshenV (vidx v) var \<in> ran_fv (inst v') \<Longrightarrow>
+     freshenLC (vidx v) var \<in> subst_lconsts (inst v') \<Longrightarrow>
      v' \<in> scope (v,p)"
 begin
-  lemma out_of_scope: "valid_in_port (v,p) \<Longrightarrow> v' |\<in>| vertices \<Longrightarrow> v' \<notin> scope (v,p) \<Longrightarrow> freshenV (vidx v) ` local_vars (nodeOf v) p \<inter> ran_fv (inst v') = {}"
+  lemma out_of_scope: "valid_in_port (v,p) \<Longrightarrow> v' |\<in>| vertices \<Longrightarrow> v' \<notin> scope (v,p) \<Longrightarrow> freshenLC (vidx v) ` local_vars (nodeOf v) p \<inter> subst_lconsts (inst v') = {}"
     using well_scoped_inst by auto
 end
   
 locale Scoped_Proof_Graph =
-  Instantiation  inPorts outPorts nodeOf hyps nodes edges  vertices labelsIn labelsOut freshenV rename fv subst ran_fv anyP vidx inst +
+  Instantiation  inPorts outPorts nodeOf hyps nodes edges  vertices labelsIn labelsOut freshenLC renameLCs lconsts closed subst subst_lconsts anyP vidx inst +
   Well_Shaped_Graph  nodes inPorts outPorts vertices nodeOf edges hyps  +
-  Solution inPorts outPorts nodeOf hyps nodes vertices  labelsIn labelsOut freshenV rename fv subst ran_fv anyP vidx inst edges +
-  Well_Scoped_Instantiation  freshenV rename fv subst ran_fv anyP inPorts outPorts nodeOf hyps  nodes vertices labelsIn labelsOut vidx inst edges local_vars
-   for freshenV :: "nat \<Rightarrow> 'var \<Rightarrow> 'var" 
-    and rename :: "('var \<Rightarrow> 'var) \<Rightarrow> 'form \<Rightarrow> 'form" 
-    and fv :: "'form \<Rightarrow> 'var set" 
+  Solution inPorts outPorts nodeOf hyps nodes vertices  labelsIn labelsOut freshenLC renameLCs lconsts closed subst subst_lconsts anyP vidx inst edges +
+  Well_Scoped_Instantiation  freshenLC renameLCs lconsts closed subst subst_lconsts anyP inPorts outPorts nodeOf hyps  nodes vertices labelsIn labelsOut vidx inst edges local_vars
+   for freshenLC :: "nat \<Rightarrow> 'var \<Rightarrow> 'var" 
+    and renameLCs :: "('var \<Rightarrow> 'var) \<Rightarrow> 'form \<Rightarrow> 'form" 
+    and lconsts :: "'form \<Rightarrow> 'var set" 
+    and closed :: "'form \<Rightarrow> bool"
     and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" 
-    and ran_fv :: "'subst \<Rightarrow> 'var set" 
+    and subst_lconsts :: "'subst \<Rightarrow> 'var set" 
     and anyP :: "'form"
     and inPorts :: "'node \<Rightarrow> 'inPort fset" 
     and outPorts :: "'node \<Rightarrow> 'outPort fset" 
@@ -616,13 +620,14 @@ begin
 end
 
 locale Tasked_Proof_Graph =
-  Abstract_Task freshenV rename fv subst ran_fv anyP  antecedent consequent rules assumptions conclusions  +
-  Scoped_Proof_Graph freshenV rename fv subst ran_fv anyP  inPorts outPorts nodeOf hyps nodes vertices labelsIn labelsOut vidx inst edges local_vars
-   for freshenV :: "nat \<Rightarrow> 'var \<Rightarrow> 'var" 
-    and rename :: "('var \<Rightarrow> 'var) \<Rightarrow> 'form \<Rightarrow> 'form" 
-    and fv :: "'form \<Rightarrow> 'var set" 
+  Abstract_Task freshenLC renameLCs lconsts closed subst subst_lconsts anyP  antecedent consequent rules assumptions conclusions  +
+  Scoped_Proof_Graph freshenLC renameLCs lconsts closed subst subst_lconsts anyP  inPorts outPorts nodeOf hyps nodes vertices labelsIn labelsOut vidx inst edges local_vars
+   for freshenLC :: "nat \<Rightarrow> 'var \<Rightarrow> 'var" 
+    and renameLCs :: "('var \<Rightarrow> 'var) \<Rightarrow> 'form \<Rightarrow> 'form" 
+    and lconsts :: "'form \<Rightarrow> 'var set" 
+    and closed :: "'form \<Rightarrow> bool"
     and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" 
-    and ran_fv :: "'subst \<Rightarrow> 'var set" 
+    and subst_lconsts :: "'subst \<Rightarrow> 'var set" 
     and anyP :: "'form"
 
     and antecedent :: "'rule \<Rightarrow> ('form, 'var) antecedent list" 

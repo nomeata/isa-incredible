@@ -34,12 +34,13 @@ begin
 end
 
 locale ND_Rules_Inst =
-  Abstract_Formulas freshenV rename fv subst ran_fv anyP
-   for freshenV :: "nat \<Rightarrow> 'var \<Rightarrow> 'var" 
-    and rename :: "('var \<Rightarrow> 'var) \<Rightarrow> 'form \<Rightarrow> 'form" 
-    and fv :: "'form \<Rightarrow> 'var set" 
+  Abstract_Formulas freshenLC renameLCs lconsts closed subst subst_lconsts anyP
+   for freshenLC :: "nat \<Rightarrow> 'var \<Rightarrow> 'var" 
+    and renameLCs :: "('var \<Rightarrow> 'var) \<Rightarrow> 'form \<Rightarrow> 'form" 
+    and lconsts :: "'form \<Rightarrow> 'var set" 
+    and closed :: "'form \<Rightarrow> bool"
     and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" 
-    and ran_fv :: "'subst \<Rightarrow> 'var set" 
+    and subst_lconsts :: "'subst \<Rightarrow> 'var set" 
     and anyP :: "'form" +
 
   fixes nat_rule :: "'rule \<Rightarrow> 'form \<Rightarrow> ('form, 'var) antecedent fset \<Rightarrow> bool"
@@ -50,8 +51,8 @@ begin
     "con |\<in>| \<Gamma>
     \<Longrightarrow> eff Axiom (\<Gamma> \<turnstile> con) {||}"
    |"nat_rule rule c ants
-    \<Longrightarrow> (\<And> ant f. ant |\<in>| ants \<Longrightarrow> f |\<in>| \<Gamma> \<Longrightarrow> freshenV a ` (a_fresh ant) \<inter> fv f = {})
-    \<Longrightarrow> (\<And> ant. ant |\<in>| ants \<Longrightarrow> freshenV a ` (a_fresh ant) \<inter> ran_fv s = {})
+    \<Longrightarrow> (\<And> ant f. ant |\<in>| ants \<Longrightarrow> f |\<in>| \<Gamma> \<Longrightarrow> freshenLC a ` (a_fresh ant) \<inter> lconsts f = {})
+    \<Longrightarrow> (\<And> ant. ant |\<in>| ants \<Longrightarrow> freshenLC a ` (a_fresh ant) \<inter> subst_lconsts s = {})
     \<Longrightarrow> eff (NatRule rule)
         (\<Gamma> \<turnstile> subst s (freshen a c))
         ((\<lambda>ant. ((\<lambda>p. subst s (freshen a p)) |`| a_hyps ant |\<union>| \<Gamma> \<turnstile> subst s (freshen a (a_conc ant)))) |`| ants) "
@@ -75,7 +76,7 @@ begin
   definition n_rules where
     "n_rules = flat (smap (\<lambda>r. map (\<lambda>c. (r,c)) (consequent r)) rules)"
   
-  sublocale ND_Rules_Inst _ _ _ _ _ _ natEff_Inst n_rules ..
+  sublocale ND_Rules_Inst _ _ _ _ _ _ _ natEff_Inst n_rules ..
 
   definition solved where
     "solved \<longleftrightarrow> (\<forall> c. c |\<in>| conc_forms \<longrightarrow> (\<exists> \<Gamma> t. fst (root t) = (\<Gamma> \<turnstile> c) \<and> \<Gamma> |\<subseteq>| ass_forms \<and> wf t \<and> tfinite t))"
@@ -102,8 +103,8 @@ begin
     \<Longrightarrow> eeff EAxiom (\<Gamma> \<turnstile> con) {||}"
    | eeff_ERule:
    "nat_rule r c ants
-    \<Longrightarrow> (\<And> ant f. ant |\<in>| ants \<Longrightarrow> f |\<in>| \<Gamma> \<Longrightarrow> freshenV a ` (a_fresh ant) \<inter> fv f = {})
-    \<Longrightarrow> (\<And> ant. ant |\<in>| ants \<Longrightarrow> freshenV a ` (a_fresh ant) \<inter> ran_fv s = {})
+    \<Longrightarrow> (\<And> ant f. ant |\<in>| ants \<Longrightarrow> f |\<in>| \<Gamma> \<Longrightarrow> freshenLC a ` (a_fresh ant) \<inter> lconsts f = {})
+    \<Longrightarrow> (\<And> ant. ant |\<in>| ants \<Longrightarrow> freshenLC a ` (a_fresh ant) \<inter> subst_lconsts s = {})
     \<Longrightarrow> eeff (ENatRule rule a s)
         (\<Gamma> \<turnstile> subst s (freshen a c))
         ((\<lambda>ant. ((\<lambda>p. subst s (freshen a p)) |`| a_hyps ant |\<union>| \<Gamma> \<turnstile> subst s (freshen a (a_conc ant)))) |`| ants) "
@@ -215,12 +216,12 @@ inductive has_index :: "idx \<Rightarrow> ('rule, idx, 'subst) ElaboratedNatRule
 
 (* Just fixes 'annot. When this is not a type parameter, this can just be ND_Rules_Inst*)
 locale ND_Rules_Inst_Fixed =
-  ND_Rules_Inst freshen pre_fv fv subst ran_fv closed nat_rule rules
+  ND_Rules_Inst freshen pre_fv lconsts subst subst_lconsts closed nat_rule rules
   for freshen :: "idx \<Rightarrow> 'preform \<Rightarrow> 'form" 
   and pre_fv :: "'preform \<Rightarrow> 'var set" 
-  and fv :: "'form \<Rightarrow> ('var \<times> idx) set" 
+  and lconsts :: "'form \<Rightarrow> ('var \<times> idx) set" 
   and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" 
-  and ran_fv :: "'subst \<Rightarrow> ('var \<times> idx) set" 
+  and subst_lconsts :: "'subst \<Rightarrow> ('var \<times> idx) set" 
   and closed :: "'preform \<Rightarrow> bool"
   and nat_rule :: "'rule \<Rightarrow> 'preform \<Rightarrow> ('preform, 'var) antecedent fset \<Rightarrow> bool"
   and rules :: "'rule stream"

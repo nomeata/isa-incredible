@@ -84,8 +84,8 @@ lemma iwf_subst_freshen_outPort:
 
 
   inductive local_fresh_check :: "('form, 'rule, 'subst) fresh_check" where
-    "\<lbrakk>\<And> ip f. ip |\<in>| inPorts n  \<Longrightarrow> f |\<in>| \<Gamma> \<Longrightarrow> freshenV i ` (local_vars n ip) \<inter> fv f = {};
-      \<And> ip. ip |\<in>| inPorts n  \<Longrightarrow> freshenV i ` (local_vars n ip) \<inter> ran_fv s = {}
+    "\<lbrakk>\<And> ip f. ip |\<in>| inPorts n  \<Longrightarrow> f |\<in>| \<Gamma> \<Longrightarrow> freshenLC i ` (local_vars n ip) \<inter> lconsts f = {};
+      \<And> ip. ip |\<in>| inPorts n  \<Longrightarrow> freshenLC i ` (local_vars n ip) \<inter> subst_lconsts s = {}
      \<rbrakk> \<Longrightarrow> local_fresh_check n i s (\<Gamma> \<turnstile> c)"
 
   abbreviation "local_iwf \<equiv> iwf local_fresh_check"
@@ -127,7 +127,8 @@ proof(induction)
       thus ?thesis unfolding Axiom..
     next
       case False
-      obtain s where [simp]: "subst s (freshen undefined anyP) = c" by atomize_elim (rule anyP_is_any)
+      obtain s where "subst s anyP = c" by atomize_elim (rule anyP_is_any)
+      hence [simp]: "subst s (freshen undefined anyP) = c" by (simp add: lconsts_anyP freshen_closed)
   
       let "?it" = "HNode undefined s ::  ('form, 'rule, 'subst, 'var) itree"
   
@@ -179,7 +180,8 @@ proof(induction)
     thus ?thesis unfolding NatRule..
   next
   case (Cut \<Gamma> con)
-    obtain s where [simp]: "subst s (freshen undefined anyP) = con" by atomize_elim (rule anyP_is_any)
+    obtain s where "subst s anyP = con" by atomize_elim (rule anyP_is_any)
+    hence  [simp]: "subst s (freshen undefined anyP) = con" by (simp add: lconsts_anyP freshen_closed)
 
     from `(fst \<circ> root) |\`| cont t = {|\<Gamma> \<turnstile> con|}`
     obtain t'  where "t' |\<in>| cont t" and [simp]: "fst (root t') = (\<Gamma> \<turnstile> con)"
@@ -459,7 +461,7 @@ proof-
 qed
 
 fun fv_entailment :: "'form entailment \<Rightarrow> 'var set" where
-  "fv_entailment (\<Gamma> \<turnstile> c) = Union (fv ` fset \<Gamma>) \<union> fv c"
+  "fv_entailment (\<Gamma> \<turnstile> c) = Union (lconsts ` fset \<Gamma>) \<union> lconsts c"
 
 definition hyp_port_for' where
   "hyp_port_for' t is f = (SOME x.
@@ -549,7 +551,7 @@ lemma in_set_inits[simp]: "is' \<in> set (inits is) \<longleftrightarrow> prefix
   *}
 
   inductive global_fresh_check :: "('form, 'rule, 'subst) fresh_check" where
-    "ran_fv s \<subseteq> fv_entailment (\<Gamma> \<turnstile> c) \<union> range (freshenV i) \<Longrightarrow> global_fresh_check n i s (\<Gamma> \<turnstile> c)"
+    "subst_lconsts s \<subseteq> fv_entailment (\<Gamma> \<turnstile> c) \<union> range (freshenLC i) \<Longrightarrow> global_fresh_check n i s (\<Gamma> \<turnstile> c)"
 
   abbreviation "global_iwf \<equiv> iwf global_fresh_check"
 

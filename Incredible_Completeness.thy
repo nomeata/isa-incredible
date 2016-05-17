@@ -3,12 +3,13 @@ imports Natural_Deduction Incredible_Deduction Incredible_Trees
 begin
 
 locale Solved_Task =
-  Abstract_Task  freshenV rename fv subst ran_fv anyP antecedent consequent rules assumptions conclusions
-   for freshenV :: "nat \<Rightarrow> 'var \<Rightarrow> 'var" 
-    and rename :: "('var \<Rightarrow> 'var) \<Rightarrow> 'form \<Rightarrow> 'form" 
-    and fv :: "'form \<Rightarrow> 'var set" 
+  Abstract_Task  freshenLC renameLCs lconsts closed subst subst_lconsts anyP antecedent consequent rules assumptions conclusions
+   for freshenLC :: "nat \<Rightarrow> 'var \<Rightarrow> 'var" 
+    and renameLCs :: "('var \<Rightarrow> 'var) \<Rightarrow> 'form \<Rightarrow> 'form" 
+    and lconsts :: "'form \<Rightarrow> 'var set" 
+    and closed :: "'form \<Rightarrow> bool"
     and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" 
-    and ran_fv :: "'subst \<Rightarrow> 'var set" 
+    and subst_lconsts :: "'subst \<Rightarrow> 'var set" 
     and anyP :: "'form"
     and antecedent :: "'rule \<Rightarrow> ('form, 'var) antecedent list" 
     and consequent :: "'rule \<Rightarrow> 'form list" 
@@ -399,12 +400,12 @@ lemma vidx_inj: "inj_on vidx (fset vertices)"
   sorry
 
 
-sublocale Instantiation inPorts outPorts nodeOf hyps  nodes edges vertices labelsIn labelsOut freshenV rename fv subst  ran_fv anyP vidx inst
+sublocale Instantiation inPorts outPorts nodeOf hyps  nodes edges vertices labelsIn labelsOut freshenLC renameLCs lconsts closed subst subst_lconsts anyP vidx inst
 proof
   show "inj_on vidx (fset vertices)" by (rule vidx_inj)
 qed
 
-sublocale Tasked_Proof_Graph freshenV rename fv subst  ran_fv anyP antecedent consequent fresh_vars rules assumptions conclusions
+sublocale Tasked_Proof_Graph freshenLC renameLCs lconsts closed subst subst_lconsts anyP antecedent consequent fresh_vars rules assumptions conclusions
   vertices nodeOf edges vidx inst
 proof
   fix v\<^sub>1 p\<^sub>1 v\<^sub>2 p\<^sub>2 p'
@@ -580,14 +581,14 @@ proof
 
   assume "var \<in> local_vars (nodeOf v) p"
   hence "var \<in> a_fresh p" by simp
-  hence fresh_not_self: "freshenV (fidx vertices v) var \<notin> ran_fv (inst v')" sorry
+  hence fresh_not_self: "freshenLC (fidx vertices v) var \<notin> subst_lconsts (inst v')" sorry
 
   assume "v' |\<in>| vertices"
   then obtain c' is' where "v' = (c',is')" by (cases v', auto)
 
   
-  assume "freshenV (vidx v) var \<in> ran_fv (inst v')"
-  also have "ran_fv (inst v') \<subseteq> Union ((\<lambda> is''. range (freshenV (vidx (c', is'')))) ` set (inits is'))"
+  assume "freshenLC (vidx v) var \<in> subst_lconsts (inst v')"
+  also have "subst_lconsts (inst v') \<subseteq> Union ((\<lambda> is''. range (freshenLC (vidx (c', is'')))) ` set (inits is'))"
     sorry
   finally obtain is'' where "prefixeq is'' is'"  and "vidx (c,is) = vidx (c', is'')"
     by (auto simp add: `v=_`)

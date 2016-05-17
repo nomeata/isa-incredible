@@ -210,7 +210,7 @@ case (wf v p pth)
       have "valid_in_port (v',ant)" by (simp add: Rule)
 
       assume "f |\<in>| ?\<Gamma>"
-      thus "freshenV (vidx v') ` a_fresh ant \<inter> fv f = {}" 
+      thus "freshenLC (vidx v') ` a_fresh ant \<inter> lconsts f = {}" 
       proof(induct rule: hyps_alongE)
         case (Hyp v'' p'' h'')
 
@@ -220,19 +220,19 @@ case (wf v p pth)
         from `terminal_path v' t ?pth'` Hyp(1)
         have "v'' \<notin> scope (v', ant)" by (rule hyps_free_path_not_in_scope)
         with `valid_in_port (v',ant)` `v'' |\<in>| vertices`
-        have "freshenV (vidx v') ` local_vars (nodeOf v') ant \<inter> ran_fv (inst v'') = {}"
+        have "freshenLC (vidx v') ` local_vars (nodeOf v') ant \<inter> subst_lconsts (inst v'') = {}"
          by (rule out_of_scope)
         moreover
         from hyps_free_vertices_distinct'[OF `terminal_path v' t ?pth'`] Hyp.hyps(1)
         have "v'' \<noteq> v'" by (metis distinct.simps(2) fst_conv image_eqI list.set_map)
         hence "vidx v'' \<noteq> vidx v'" using `v' |\<in>| vertices` `v'' |\<in>| vertices` by (meson vidx_inj inj_onD notin_fset)
-        hence "freshenV (vidx v') ` a_fresh ant \<inter> freshenV (vidx v'') ` fv (labelsOut (nodeOf v'') h'') = {}"by auto
+        hence "freshenLC (vidx v') ` a_fresh ant \<inter> freshenLC (vidx v'') ` lconsts (labelsOut (nodeOf v'') h'') = {}"by auto
         moreover
-        have "fv f \<subseteq> fv (freshen (vidx v'') (labelsOut (nodeOf v'') h'')) \<union> ran_fv (inst v'') " using `f = _`
+        have "lconsts f \<subseteq> lconsts (freshen (vidx v'') (labelsOut (nodeOf v'') h'')) \<union> subst_lconsts (inst v'') " using `f = _`
           by (simp add: labelAtOut_def fv_subst)
         ultimately
         show ?thesis 
-          by (fastforce simp add: fv_freshen)
+          by (fastforce simp add:  lconsts_freshen)
       next
         case (Assumption v pf)
         hence "f = subst (inst v) (freshen (vidx v) pf)" by (simp add: labelAtOut_def)
@@ -241,7 +241,7 @@ case (wf v p pth)
         hence "pf \<in> set assumptions" unfolding nodes_def by (auto simp add: stream.set_map)
         hence "closed pf" by (rule assumptions_closed)
         ultimately
-        have "fv f = {}" by (simp add: closed_fv fv_freshen subst_closed)
+        have "lconsts f = {}" by (simp add: closed_no_lconsts lconsts_freshen subst_closed freshen_closed)
         thus ?thesis by simp
       qed      
     next
@@ -254,9 +254,9 @@ case (wf v p pth)
       moreover
       hence "v' \<notin> scope (v', ant)" by (rule scopes_not_refl)
       ultimately
-      have "freshenV (vidx v') ` local_vars (nodeOf v') ant \<inter> ran_fv (inst v') = {}"
+      have "freshenLC (vidx v') ` local_vars (nodeOf v') ant \<inter> subst_lconsts (inst v') = {}"
         by (rule out_of_scope)
-      thus "freshenV (vidx v') ` a_fresh ant \<inter> ran_fv (inst v') = {}" by simp
+      thus "freshenLC (vidx v') ` a_fresh ant \<inter> subst_lconsts (inst v') = {}" by simp
     qed
     also
     have "subst (inst v') (freshen (vidx v') f) = labelAtOut v' p'" using Rule by (simp add: labelAtOut_def)
@@ -341,7 +341,7 @@ proof
   hence "pf \<in> set assumptions" by (auto simp add: nodes_def stream.set_map)
   hence "closed pf" by (rule  assumptions_closed)
   with `x = labelAtOut v (Reg pf)`
-  have "x = pf" by (auto simp add: labelAtOut_def closed_fv freshen_def rename_closed subst_closed)
+  have "x = pf" by (auto simp add: labelAtOut_def lconsts_freshen closed_no_lconsts freshen_closed subst_closed)
   thus "x |\<in>| ass_forms" using `pf \<in> set assumptions` by (auto simp add: ass_forms_def)
 qed
 
@@ -528,7 +528,7 @@ proof(intro ballI allI conjI impI)
 
   have "fst (root ?t) = (global_assms TYPE('var), c)"
     using `c \<in> set conclusions` `nodeOf _ = _`
-    by (auto simp add: labelAtIn_def conclusions_closed closed_fv freshen_def rename_closed subst_closed)
+    by (auto simp add: labelAtIn_def conclusions_closed closed_no_lconsts  freshen_def rename_closed subst_closed)
   moreover
 
   have "global_assms TYPE('var) |\<subseteq>| ass_forms" by (rule global_in_ass)
