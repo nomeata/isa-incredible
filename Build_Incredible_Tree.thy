@@ -1,0 +1,5 @@
+theory Build_Incredible_Tree
+imports Incredible_Trees Natural_Deduction
+begin
+
+end
