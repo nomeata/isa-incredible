@@ -40,13 +40,13 @@ lemma
   by (force simp add: solved_def)
 
 abbreviation it' where
-  "it' c \<equiv> globalize [0] (freshenLC v_away) ( to_it (ts c))"
+  "it' c \<equiv> globalize [fidx conc_forms c, 0] (freshenLC v_away) (to_it (ts c))"
 
 lemma local_iwf_it:
   assumes "c \<in> set conclusions"
   shows "local_iwf (it' c) (fst (root (ts c)))"
   using assms
-    by (auto intro!: iwf_globalize' iwf_to_it ts_finite ts_wf)
+    by (auto simp add: ts_conc conclusions_closed intro!: iwf_globalize' iwf_to_it ts_finite ts_wf)
 
 definition vertices :: "'form vertex fset"  where
   "vertices = Abs_fset (Union ( set (map (\<lambda> c. insert (c, []) ((\<lambda> p. (c, 0 # p)) ` (it_paths (it' c))))  conclusions)))"
@@ -408,12 +408,12 @@ lemma hyps_free_path_length:
 using assms by induction (auto elim!: edge_step )
 
 fun vidx :: "'form vertex \<Rightarrow> nat" where
-  "vidx (c, [])   = fidx conc_forms c"
- |"vidx (c, _#is) = iAnnot (tree_at (it' c) is)"
+   "vidx (c, [])   = isidx [fidx conc_forms c]"
+  |"vidx (c, _#is) = iAnnot (tree_at (it' c) is)"
 
 lemma vidx_inj: "inj_on vidx (fset vertices)"
-  sorry
-
+  by(rule inj_onI)
+    (auto simp add:  mem_vertices[unfolded fmember.rep_eq] iAnnot_globalize)
 
 sublocale Instantiation inPorts outPorts nodeOf hyps  nodes edges vertices labelsIn labelsOut freshenLC renameLCs lconsts closed subst subst_lconsts subst_renameLCs anyP vidx inst
 proof
@@ -643,7 +643,8 @@ proof
 
   have "prefixeq (is @ [i]) is'" sorry
 
-  have "is' \<noteq> []" sorry
+  from `prefixeq (is @ [i]) is'`
+  have "is' \<noteq> []" by (cases is') auto
   with `v' |\<in>| vertices` `v' = _`
   obtain is'' where
     "is' = 0 # is''"  and "is'' \<in> it_paths (it' c')"
