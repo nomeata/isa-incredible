@@ -34,13 +34,14 @@ begin
 end
 
 locale ND_Rules_Inst =
-  Abstract_Formulas freshenLC renameLCs lconsts closed subst subst_lconsts anyP
+  Abstract_Formulas freshenLC renameLCs lconsts closed subst subst_lconsts subst_renameLCs anyP
    for freshenLC :: "nat \<Rightarrow> 'var \<Rightarrow> 'var" 
     and renameLCs :: "('var \<Rightarrow> 'var) \<Rightarrow> 'form \<Rightarrow> 'form" 
     and lconsts :: "'form \<Rightarrow> 'var set" 
     and closed :: "'form \<Rightarrow> bool"
     and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" 
     and subst_lconsts :: "'subst \<Rightarrow> 'var set" 
+    and subst_renameLCs :: "('var \<Rightarrow> 'var) \<Rightarrow> ('subst \<Rightarrow> 'subst)"
     and anyP :: "'form" +
 
   fixes nat_rule :: "'rule \<Rightarrow> 'form \<Rightarrow> ('form, 'var) antecedent fset \<Rightarrow> bool"
@@ -76,7 +77,7 @@ begin
   definition n_rules where
     "n_rules = flat (smap (\<lambda>r. map (\<lambda>c. (r,c)) (consequent r)) rules)"
   
-  sublocale ND_Rules_Inst _ _ _ _ _ _ _ natEff_Inst n_rules ..
+  sublocale ND_Rules_Inst _ _ _ _ _ _ _ _ natEff_Inst n_rules ..
 
   definition solved where
     "solved \<longleftrightarrow> (\<forall> c. c |\<in>| conc_forms \<longrightarrow> (\<exists> \<Gamma> t. fst (root t) = (\<Gamma> \<turnstile> c) \<and> \<Gamma> |\<subseteq>| ass_forms \<and> wf t \<and> tfinite t))"

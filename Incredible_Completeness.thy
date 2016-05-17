@@ -3,13 +3,14 @@ imports Natural_Deduction Incredible_Deduction Incredible_Trees
 begin
 
 locale Solved_Task =
-  Abstract_Task  freshenLC renameLCs lconsts closed subst subst_lconsts anyP antecedent consequent rules assumptions conclusions
+  Abstract_Task  freshenLC renameLCs lconsts closed subst subst_lconsts subst_renameLCs anyP antecedent consequent rules assumptions conclusions
    for freshenLC :: "nat \<Rightarrow> 'var \<Rightarrow> 'var" 
     and renameLCs :: "('var \<Rightarrow> 'var) \<Rightarrow> 'form \<Rightarrow> 'form" 
     and lconsts :: "'form \<Rightarrow> 'var set" 
     and closed :: "'form \<Rightarrow> bool"
     and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" 
     and subst_lconsts :: "'subst \<Rightarrow> 'var set" 
+    and subst_renameLCs :: "('var \<Rightarrow> 'var) \<Rightarrow> ('subst \<Rightarrow> 'subst)"
     and anyP :: "'form"
     and antecedent :: "'rule \<Rightarrow> ('form, 'var) antecedent list" 
     and consequent :: "'rule \<Rightarrow> 'form list" 
@@ -400,12 +401,12 @@ lemma vidx_inj: "inj_on vidx (fset vertices)"
   sorry
 
 
-sublocale Instantiation inPorts outPorts nodeOf hyps  nodes edges vertices labelsIn labelsOut freshenLC renameLCs lconsts closed subst subst_lconsts anyP vidx inst
+sublocale Instantiation inPorts outPorts nodeOf hyps  nodes edges vertices labelsIn labelsOut freshenLC renameLCs lconsts closed subst subst_lconsts subst_renameLCs anyP vidx inst
 proof
   show "inj_on vidx (fset vertices)" by (rule vidx_inj)
 qed
 
-sublocale Tasked_Proof_Graph freshenLC renameLCs lconsts closed subst subst_lconsts anyP antecedent consequent fresh_vars rules assumptions conclusions
+sublocale Tasked_Proof_Graph freshenLC renameLCs lconsts closed subst subst_lconsts subst_renameLCs anyP antecedent consequent fresh_vars rules assumptions conclusions
   vertices nodeOf edges vidx inst
 proof
   fix v\<^sub>1 p\<^sub>1 v\<^sub>2 p\<^sub>2 p'

@@ -542,6 +542,16 @@ by (cases "is" rule: rev_cases) auto
 lemma in_set_inits[simp]: "is' \<in> set (inits is) \<longleftrightarrow> prefixeq is' is"
   by (induction "is'" arbitrary: "is"; case_tac "is"; auto)
 
+text {*
+  Rename all local constants.
+  *}
+
+(*
+fun rename_local_consts :: "(var \<Rightarrow> var) \<Rightarrow> ('form,'rule,'subst,'var) itree \<Rightarrow> ('form,'rule,'subst,'var) itree"  where
+    "rename_local_consts f (INode n p i s ants) = (INode n p i (subst_renameLCs f s) (ants)"
+  | "rename_local_consts f (HNode i s) = (HNode i s)"
+
+*)
 
 
 

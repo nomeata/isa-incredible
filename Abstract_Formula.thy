@@ -12,6 +12,7 @@ locale Abstract_Formulas =
   fixes closed :: "'form \<Rightarrow> bool"
   fixes subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form"
   fixes subst_lconsts :: "'subst \<Rightarrow> 'var set"
+  fixes subst_renameLCs :: "('var \<Rightarrow> 'var) \<Rightarrow> ('subst \<Rightarrow> 'subst)"
   fixes anyP :: "'form"
   assumes freshenLC_eq_iff[simp]: "freshenLC a v = freshenLC a' v' \<longleftrightarrow> a = a' \<and> v = v'"
   assumes lconsts_renameLCs: "lconsts (renameLCs p f) = p ` lconsts f"
@@ -19,6 +20,7 @@ locale Abstract_Formulas =
   assumes subst_closed: "closed f \<Longrightarrow> subst s f = f"
   assumes closed_no_lconsts: "closed f \<Longrightarrow> lconsts f = {}"
   assumes fv_subst: "lconsts (subst s f) \<subseteq> lconsts f \<union> subst_lconsts s"
+  assumes rename_subst: "renameLCs p (subst s f) = subst (subst_renameLCs p s) (renameLCs p f)"
   assumes lconsts_anyP: "lconsts anyP = {}"
   assumes anyP_is_any: "\<exists> s. subst s anyP = f"
 begin
@@ -49,13 +51,14 @@ abbreviation plain_ant :: "'form \<Rightarrow> ('form, 'var) antecedent"
   where "plain_ant f \<equiv> Antecedent {||} f {}"
 
 locale Abstract_Rules =
-  Abstract_Formulas freshenLC renameLCs lconsts closed subst subst_lconsts anyP
+  Abstract_Formulas freshenLC renameLCs lconsts closed subst subst_lconsts subst_renameLCs anyP
   for freshenLC :: "nat \<Rightarrow> 'var \<Rightarrow> 'var"
   and renameLCs  :: "('var \<Rightarrow> 'var) \<Rightarrow> ('form \<Rightarrow> 'form)"
   and lconsts :: "'form \<Rightarrow> 'var set"
   and closed :: "'form \<Rightarrow> bool"
   and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" 
   and subst_lconsts :: "'subst \<Rightarrow> 'var set" 
+  and subst_renameLCs :: "('var \<Rightarrow> 'var) \<Rightarrow> ('subst \<Rightarrow> 'subst)"
   and anyP :: "'form" +
   fixes antecedent :: "'rule \<Rightarrow> ('form, 'var) antecedent list"
   fixes consequent :: "'rule \<Rightarrow> 'form list"
@@ -68,13 +71,14 @@ begin
 end
 
 locale Abstract_Task =
-  Abstract_Rules freshenLC renameLCs lconsts closed subst subst_lconsts anyP  antecedent consequent rules
+  Abstract_Rules freshenLC renameLCs lconsts closed subst subst_lconsts subst_renameLCs anyP  antecedent consequent rules
   for freshenLC :: "nat \<Rightarrow> 'var \<Rightarrow> 'var"
     and renameLCs  :: "('var \<Rightarrow> 'var) \<Rightarrow> ('form \<Rightarrow> 'form)"
     and lconsts :: "'form \<Rightarrow> 'var set"
     and closed :: "'form \<Rightarrow> bool"
     and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" 
     and subst_lconsts :: "'subst \<Rightarrow> 'var set" 
+    and subst_renameLCs :: "('var \<Rightarrow> 'var) \<Rightarrow> ('subst \<Rightarrow> 'subst)"
     and anyP :: "'form"
     and antecedent :: "'rule \<Rightarrow> ('form, 'var) antecedent list"
     and consequent :: "'rule \<Rightarrow> 'form list" 
