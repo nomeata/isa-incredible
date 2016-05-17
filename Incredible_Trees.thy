@@ -34,13 +34,13 @@ datatype ('form,'rule,'subst,'var)  itree =
           (iOutPort': "'form reg_out_port")
           (iAnnot: "nat")
           (iSubst: "'subst")
-          (iAnts': "('form, 'var) in_port \<rightharpoonup> ('form,'rule,'subst,'var) itree")
+          (iAnts': "('form,'rule,'subst,'var) itree list")
   | HNode (iAnnot: "nat")
           (iSubst: "'subst")
 
 fun iAnts where
    "iAnts (INode n p i s ants) = ants"
- | "iAnts (HNode i s) = empty"
+ | "iAnts (HNode i s) = []"
 
 fun iNodeOf where
    "iNodeOf (INode n p i s ants) = n"
@@ -64,11 +64,10 @@ begin
     iwf: "\<lbrakk>
        n \<in> sset nodes;
        Reg p |\<in>| outPorts n;
-       \<And> ip. ip |\<in>| inPorts n \<Longrightarrow>
-          (\<exists> t. ants ip = Some t \<and>
-              iwf fc t ((\<lambda> h . subst s (freshen i (labelsOut n h))) |`| hyps_for n ip |\<union>| \<Gamma> \<turnstile> subst s (freshen i (labelsIn n ip))));
+       list_all2 (\<lambda> ip t. iwf fc t ((\<lambda> h . subst s (freshen i (labelsOut n h))) |`| hyps_for n ip |\<union>| \<Gamma> \<turnstile> subst s (freshen i (labelsIn n ip))))
+                (inPorts' n) ants;
        fc n i s (\<Gamma> \<turnstile> c);
-       c = subst s (freshen i (labelsOut n (Reg p :: (('form, 'var) out_port))))
+       c = subst s (freshen i p)
       \<rbrakk> \<Longrightarrow> iwf fc (INode n p i s ants) (\<Gamma> \<turnstile> c)"  
   | iwfH: "\<lbrakk>
        c |\<notin>| ass_forms;
@@ -119,7 +118,7 @@ proof(induction)
       case True (* Global assumption *)
       then  have "c \<in> set assumptions"  by (auto simp add:  ass_forms_def)
 
-      let "?it" = "INode (Assumption c) c undefined undefined empty ::  ('form, 'rule, 'subst, 'var) itree"
+      let "?it" = "INode (Assumption c) c undefined undefined [] ::  ('form, 'rule, 'subst, 'var) itree"
 
       from `c \<in> set assumptions`
       have "local_iwf ?it (\<Gamma> \<turnstile> c)" by (auto intro!: iwf local_fresh_check.intros)
@@ -139,7 +138,7 @@ proof(induction)
   next
   case (NatRule rule c ants \<Gamma> i s)
     from `natEff_Inst rule c ants`
-    have "snd rule = c"  and [simp]: "f_antecedent (fst rule) = ants" and "c \<in> set (consequent (fst rule))"
+    have "snd rule = c"  and [simp]: "ants = f_antecedent (fst rule)" and "c \<in> set (consequent (fst rule))"
       by (auto simp add: natEff_Inst.simps)  
 
     from `(fst \<circ> root) |\`| cont t = (\<lambda>ant. (\<lambda>p. subst s (freshen i p)) |\`| a_hyps ant |\<union>| \<Gamma> \<turnstile> subst s (freshen i (a_conc ant))) |\`| ants`
@@ -149,7 +148,8 @@ proof(induction)
       and to_t_root: "\<And> ant. ant |\<in>| ants \<Longrightarrow>  fst (root (to_t ant)) = ((\<lambda>p. subst s (freshen i p)) |`| a_hyps ant |\<union>| \<Gamma> \<turnstile> subst s (freshen i (a_conc ant)))"
       by auto
 
-    let "?it" = "INode (Rule (fst rule)) c i s (\<lambda> ant. if ant |\<in>| ants then Some (its (to_t ant)) else None) ::  ('form, 'rule, 'subst, 'var) itree"
+    let ?ants' = "map (\<lambda> ant. its (to_t ant)) (antecedent (fst rule))"
+    let "?it" = "INode (Rule (fst rule)) c i s ?ants' ::  ('form, 'rule, 'subst, 'var) itree"
 
     from `snd (root t) \<in> R`
     have "fst rule \<in> sset rules"
@@ -160,23 +160,29 @@ proof(induction)
     have "c |\<in>| f_consequent (fst rule)" by (simp add: f_consequent_def)
     moreover
     { fix ant
-      assume "ant |\<in>| ants"
+      assume "ant \<in> set (antecedent (fst rule))"
+      hence "ant |\<in>| ants" by (simp add: f_antecedent_def)
       from its[OF to_t_in_cont[OF this]]
       have "local_iwf (its (to_t ant)) (fst (root (to_t ant)))".
       also have "fst (root (to_t ant)) =
+        ((\<lambda>p. subst s (freshen i p)) |`| a_hyps ant |\<union>| \<Gamma> \<turnstile> subst s (freshen i (a_conc ant)))"
+        by (rule to_t_root[OF `ant |\<in>| ants`])
+      also have "\<dots> =
         ((\<lambda>h. subst s (freshen i (labelsOut (Rule (fst rule)) h))) |`| hyps_for (Rule (fst rule)) ant |\<union>| \<Gamma>
-         \<turnstile> subst s (freshen i (a_conc ant)))"
-        by (auto simp add: to_t_root `ant |\<in>| ants`)
+         \<turnstile> subst s (freshen i (a_conc ant)))" 
+         using \<open>ant |\<in>| ants\<close>
+         by auto
       finally
       have "local_iwf (its (to_t ant))
            ((\<lambda>h. subst s (freshen i (labelsOut (Rule (fst rule)) h))) |`| hyps_for (Rule (fst rule)) ant |\<union>|
             \<Gamma>  \<turnstile> subst s (freshen i (a_conc ant)))".
     }
     moreover
+
     note NatRule(5,6)
     ultimately
     have "local_iwf ?it ((\<Gamma> \<turnstile> subst s (freshen i c)))"
-      by (intro iwf local_fresh_check.intros) auto
+      by (intro iwf local_fresh_check.intros) (auto simp add: list_all2_map2 list_all2_same)
     thus ?thesis unfolding NatRule..
   next
   case (Cut \<Gamma> con)
@@ -189,7 +195,7 @@ proof(induction)
     
     from `t' |\<in>| cont t` obtain "it'" where "local_iwf it' (\<Gamma> \<turnstile> con)" using IH by force
 
-    let "?it" = "INode Helper anyP undefined s (empty(plain_ant anyP \<mapsto> it')) ::  ('form, 'rule, 'subst, 'var) itree"
+    let "?it" = "INode Helper anyP undefined s [it'] ::  ('form, 'rule, 'subst, 'var) itree"
 
     from `local_iwf it' (\<Gamma> \<turnstile> con)`
     have "local_iwf ?it (\<Gamma> \<turnstile> con)" by (auto intro!: iwf local_fresh_check.intros)
@@ -206,13 +212,13 @@ lemma iwf_to_it:
 unfolding to_it_def using build_local_iwf[OF assms] by (rule someI2_ex)
 
 
-inductive it_pathsP :: "('form,'rule,'subst,'var) itree \<Rightarrow> ('form, 'var) in_port list \<Rightarrow> bool"  where
+inductive it_pathsP :: "('form,'rule,'subst,'var) itree \<Rightarrow> nat list \<Rightarrow> bool"  where
    it_paths_Nil: "it_pathsP t []"
- | it_paths_Cons: "i |\<in>| inPorts (iNodeOf t) \<Longrightarrow> iAnts t i = Some t' \<Longrightarrow> it_pathsP t' is \<Longrightarrow> it_pathsP t (i#is)"
+ | it_paths_Cons: "i < length (iAnts t) \<Longrightarrow> iAnts t ! i = t' \<Longrightarrow> it_pathsP t' is \<Longrightarrow> it_pathsP t (i#is)"
 
 inductive_cases it_pathP_ConsE: "it_pathsP t (i#is)"
 
-definition it_paths:: "('form,'rule,'subst,'var) itree \<Rightarrow> ('form, 'var) in_port list set"  where
+definition it_paths:: "('form,'rule,'subst,'var) itree \<Rightarrow> nat list set"  where
   "it_paths t = Collect (it_pathsP t)"
 
  lemma it_paths_eq [pred_set_conv]: "it_pathsP t = (\<lambda>x. x \<in> it_paths t)"
@@ -229,25 +235,25 @@ definition it_paths:: "('form,'rule,'subst,'var) itree \<Rightarrow> ('form, 'va
 lemma it_paths_HNode[simp]: "it_paths (HNode i s) = {[]}"
   by (auto elim: it_paths_cases)
 
-lemma it_paths_Union: "it_paths t \<subseteq> insert [] (Union (fset ((\<lambda> i. case iAnts t i of Some t \<Rightarrow> (op # i) ` it_paths t | None \<Rightarrow> {}) |`| (inPorts (iNodeOf t)))))"
+lemma it_paths_Union: "it_paths t \<subseteq> insert [] (Union (((\<lambda> (i,t). (op # i) ` it_paths t) ` set (List.enumerate (0::nat) (iAnts t)))))"
   apply (rule)
-  apply (subst (asm) it_paths_simps)
-  apply (fastforce split: prod.split simp add: fmember.rep_eq)
+  apply (erule it_paths_cases)
+  apply (auto intro!: bexI simp add: in_set_enumerate_eq)
   done
 
 lemma finite_it_paths[simp]: "finite (it_paths t)"
-  by (induction t) (rule finite_subset[OF it_paths_Union], fastforce split: option.split intro: range_eqI)+
+  by (induction t) (auto intro!:  finite_subset[OF it_paths_Union]  simp add: in_set_enumerate_eq)
 end
 
-fun tree_at :: "('form,'rule,'subst,'var) itree \<Rightarrow> ('form, 'var) in_port list \<Rightarrow> ('form,'rule,'subst,'var) itree" where
+fun tree_at :: "('form,'rule,'subst,'var) itree \<Rightarrow> nat list \<Rightarrow> ('form,'rule,'subst,'var) itree" where
   "tree_at t [] = t"
-| "tree_at t (i#is) = tree_at (the (iAnts t i)) is"
+| "tree_at t (i#is) = tree_at (iAnts t ! i) is"
 
 context Abstract_Task
 begin
-lemma it_path_SnocE[elim_format]:
+lemma it_paths_SnocE[elim_format]:
   assumes "is @ [i] \<in> it_paths t"
-  shows "is \<in> it_paths t \<and> i |\<in>| inPorts (iNodeOf (tree_at t is))"
+  shows "is \<in> it_paths t \<and> i < length (iAnts (tree_at t is))"
 using assms
 by (induction "is" arbitrary: t)(auto intro!: it_paths_intros elim!: it_paths_ConsE)
 
@@ -277,60 +283,80 @@ using assms it_paths_prefix  prefixI by fastforce
 end
 
 
-type_synonym ('form, 'var) vertex = "('form \<times> ('form, 'var) in_port list)"
-type_synonym ('form, 'var) edge'' = "(('form, 'var) vertex, 'form, 'var) edge'"
-
 context Abstract_Task
 begin
 lemma it_path_SnocI:
-  assumes "iwf fc t ant"
   assumes "is \<in> it_paths t" 
-  assumes "\<not> isHNode (tree_at t is)"
-  assumes "i |\<in>| inPorts (iNodeOf (tree_at t is))"
+  assumes "i < length (iAnts (tree_at t is))"
+  (* assumes "iwf fc t ant" *)
+  (* assumes "i |\<in>| inPorts (iNodeOf (tree_at t is))" *)
   shows "is @ [i] \<in> it_paths t"
   using assms
-  apply (induction arbitrary: "is" i)
+  apply (induction t arbitrary: "is" i)
   apply auto
   apply (case_tac "is")
-  apply (force intro: it_paths_intros elim!: it_paths_ConsE)+
+  apply (auto intro: it_paths_intros elim!: it_paths_ConsE)
   done
 
 lemma iwf_edge_match:
   assumes "iwf fc t ent"
   assumes "is@[i] \<in> it_paths t"
   shows "subst (iSubst (tree_at t (is@[i]))) (freshen (iAnnot (tree_at t (is@[i]))) (iOutPort (tree_at t (is@[i]))))
-     = subst (iSubst (tree_at t is)) (freshen (iAnnot (tree_at t is)) (a_conc i))"
+     = subst (iSubst (tree_at t is)) (freshen (iAnnot (tree_at t is)) (a_conc (inPorts' (iNodeOf (tree_at t is)) ! i)))"
   using assms
   apply (induction arbitrary: "is" i)
+  apply (auto elim!:  it_paths_SnocE)
   apply (case_tac "is")
-  apply (force elim!: it_paths_ConsE intro: trans[OF iwf_subst_freshen_outPort[symmetric]])+
+  apply (auto dest: list_all2_nthD2 intro: trans[OF iwf_subst_freshen_outPort[symmetric]])[1]
+  apply (auto elim!: it_paths_ConsE)
+  apply (drule(1) list_all2_nthD2)
+  apply auto
+  using it_path_SnocI
+  apply blast
   done
 
-end
+lemma iwf_length_inPorts:
+  assumes "iwf fc t ent"
+  assumes "is \<in> it_paths t"
+  shows "length (iAnts (tree_at t is)) \<le> length (inPorts' (iNodeOf (tree_at t is)))"
+  using assms
+  apply (induction arbitrary: "is" rule: iwf.induct)
+  apply (case_tac "is")
+  apply (auto elim!: it_paths_ConsE dest: list_all2_lengthD list_all2_nthD2)
+  done
 
-context Abstract_Task
-begin
+lemma iwf_length_inPorts_not_HNode:
+  assumes "iwf fc t ent"
+  assumes "is \<in> it_paths t"
+  assumes "\<not> (isHNode (tree_at t is))"
+  shows "length (iAnts (tree_at t is)) = length (inPorts' (iNodeOf (tree_at t is)))"
+  using assms
+  apply (induction arbitrary: "is" rule: iwf.induct)
+  apply (case_tac "is")
+  apply (auto elim!: it_paths_ConsE dest: list_all2_lengthD list_all2_nthD2)
+  done
+
+ 
 
 lemma iNodeOf_outPorts:
-  "iwf fc t ent \<Longrightarrow> x \<in> it_paths t \<Longrightarrow> outPorts (iNodeOf (tree_at t x)) = {||} \<Longrightarrow> False"
-  apply (induction arbitrary: x rule: iwf.induct)
-  apply (case_tac x)
-  apply (auto elim!: it_paths_ConsE)
-  apply force
+  "iwf fc t ent \<Longrightarrow> is \<in> it_paths t \<Longrightarrow> outPorts (iNodeOf (tree_at t is)) = {||} \<Longrightarrow> False"
+  apply (induction arbitrary: "is" rule: iwf.induct)
+  apply (case_tac "is")
+  apply (auto elim!: it_paths_ConsE dest: list_all2_nthD2)
   done
 
 lemma iNodeOf_tree_at:
-  "iwf fc t ent \<Longrightarrow> x \<in> it_paths t \<Longrightarrow> iNodeOf (tree_at t x) \<in> sset nodes"
-  apply (induction arbitrary: x rule: iwf.induct)
-  apply (case_tac x)
-  apply (auto elim!: it_paths_ConsE)
-  apply force
+  "iwf fc t ent \<Longrightarrow> is \<in> it_paths t \<Longrightarrow> iNodeOf (tree_at t is) \<in> sset nodes"
+  apply (induction arbitrary: "is" rule: iwf.induct)
+  apply (case_tac "is")
+  apply (auto elim!: it_paths_ConsE dest: list_all2_nthD2)
   done
 
 inductive_set hyps_along for t "is" where
  "prefixeq (is'@[i]) is \<Longrightarrow>
-  hyps (iNodeOf (tree_at t is')) h = Some i \<Longrightarrow>
-  subst (iSubst  (tree_at t is')) (freshen (iAnnot (tree_at t is')) (labelsOut (iNodeOf (tree_at t is')) h)) \<in> hyps_along t is"
+  i < length (inPorts' (iNodeOf (tree_at t is'))) \<Longrightarrow>
+  hyps (iNodeOf (tree_at t is')) h = Some (inPorts' (iNodeOf (tree_at t is')) ! i) \<Longrightarrow>
+  subst (iSubst (tree_at t is')) (freshen (iAnnot (tree_at t is')) (labelsOut (iNodeOf (tree_at t is')) h)) \<in> hyps_along t is"
 
 lemma hyps_along_Nil[simp]: "hyps_along t [] = {}"
   by (auto simp add: hyps_along.simps)
@@ -346,14 +372,16 @@ lemma prefixeq_app_Cons_simp:
  by (cases xs) auto
 
 lemma hyps_along_Cons:
+  assumes "iwf fc t ent"
   assumes "i#is \<in> it_paths t"
   shows "hyps_along t (i#is) =
-    (\<lambda>h. subst (iSubst t) (freshen (iAnnot t) (labelsOut (iNodeOf t) h))) ` fset (hyps_for (iNodeOf t) i)
-    \<union> hyps_along (the (iAnts t i)) is" (is "?S1 = ?S2 \<union> ?S3")
+    (\<lambda>h. subst (iSubst t) (freshen (iAnnot t) (labelsOut (iNodeOf t) h))) ` fset (hyps_for (iNodeOf t) (inPorts' (iNodeOf t) ! i))
+    \<union> hyps_along (iAnts t ! i) is" (is "?S1 = ?S2 \<union> ?S3")
 proof-
   from assms
-  obtain t' where "i |\<in>| inPorts (iNodeOf t)" and [simp]: "iAnts t i = Some t'" and "is \<in> it_paths t'"
+  have "i < length (iAnts t)" and "is \<in> it_paths (iAnts t ! i)" 
     by (auto elim: it_paths_ConsE)
+  let "?t'" = "iAnts t ! i"
 
   show ?thesis
   proof (rule; rule)
@@ -361,25 +389,28 @@ proof-
     assume "x \<in> hyps_along t (i # is)"
     then obtain is' i' h where
       "prefixeq (is'@[i']) (i#is)"
-      and "hyps (iNodeOf (tree_at t is')) h = Some i'"
-      and [simp]: "x = subst (iSubst  (tree_at t is')) (freshen (iAnnot (tree_at t is')) (labelsOut (iNodeOf (tree_at t is')) h))"
-    by (auto elim: hyps_along.cases)
+      and "i' < length (inPorts' (iNodeOf (tree_at t is')))"
+      and "hyps (iNodeOf (tree_at t is')) h = Some (inPorts' (iNodeOf (tree_at t is')) ! i')"
+      and [simp]: "x = subst (iSubst (tree_at t is')) (freshen (iAnnot (tree_at t is')) (labelsOut (iNodeOf (tree_at t is')) h))"
+    by (auto elim!: hyps_along.cases)
     from this(1)
     show "x \<in> ?S2 \<union> ?S3"
     proof(cases rule: prefixeq_app_Cons_elim)
       assume "is' = []" and "i' = i"
-      with `hyps (iNodeOf (tree_at t is')) h = Some i'`
+      with `hyps (iNodeOf (tree_at t is')) h = Some _`
       have "x \<in> ?S2" by auto
       thus ?thesis..
     next
       fix is''
       assume [simp]: "is' = i # is''" and "prefixeq (is'' @ [i']) is"
+      have "tree_at t is' = tree_at ?t' is''" by simp
 
-      from `hyps (iNodeOf (tree_at t is')) h = Some i'`
-      have "hyps (iNodeOf (tree_at t' is'')) h = Some i'" by simp
-
-      from hyps_along.intros[OF `prefixeq (is'' @ [i']) is` this]
-      have "subst (iSubst (tree_at t' is'')) (freshen (iAnnot (tree_at t' is'')) (labelsOut (iNodeOf (tree_at t' is'')) h))  \<in> hyps_along t' is".
+      note `prefixeq (is'' @ [i']) is`
+           `i' < length (inPorts' (iNodeOf (tree_at t is')))`
+           `hyps (iNodeOf (tree_at t is')) h = Some (inPorts' (iNodeOf (tree_at t is')) ! i')`
+      from this[unfolded `tree_at t is' = tree_at ?t' is''`]
+      have "subst (iSubst (tree_at (iAnts t ! i) is'')) (freshen (iAnnot (tree_at (iAnts t ! i) is'')) (labelsOut (iNodeOf (tree_at (iAnts t ! i) is'')) h))
+          \<in> hyps_along (iAnts t ! i) is" by (rule hyps_along.intros)
       hence "x \<in> ?S3" by simp
       thus ?thesis..
     qed
@@ -389,15 +420,22 @@ proof-
     thus "x \<in> ?S1"
     proof
       have "prefixeq ([]@[i]) (i#is)" by simp
-      
+      moreover
+      from `iwf _ t _`
+      have "length (iAnts t) \<le> length (inPorts' (iNodeOf (tree_at t []))) "
+        by cases (auto dest: list_all2_lengthD)
+      with `i < _`
+      have "i < length (inPorts' (iNodeOf (tree_at t [])))" by simp
+      moreover
       assume "x \<in> ?S2"
-      then obtain h where "h |\<in>| hyps_for (iNodeOf t) i"
+      then obtain h where "h |\<in>| hyps_for (iNodeOf t) (inPorts' (iNodeOf t) ! i)"
         and [simp]: "x = subst (iSubst t) (freshen (iAnnot t) (labelsOut (iNodeOf t) h))" by auto
       from this(1)
-      have "hyps (iNodeOf (tree_at t [])) h = Some i" by simp
-      
-      from hyps_along.intros[OF `prefixeq ([]@[i]) (i#is)` this]
-      show "x \<in> hyps_along t (i # is)" by simp
+      have "hyps (iNodeOf (tree_at t [])) h = Some (inPorts' (iNodeOf (tree_at t [])) ! i)" by simp
+      ultimately
+      have "subst (iSubst (tree_at t [])) (freshen (iAnnot (tree_at t [])) (labelsOut (iNodeOf (tree_at t [])) h)) \<in> hyps_along t (i # is)"
+        by (rule hyps_along.intros)
+      thus "x \<in> hyps_along t (i # is)" by simp
     next
       assume "x \<in> ?S3"
       thus "x \<in> ?S1"
@@ -421,32 +459,37 @@ proof-
      \<or> subst s (freshen i anyP) |\<in>| fst (fst (root ts))
        \<and> subst s (freshen i anyP) |\<notin>| ass_forms"
   proof(induction arbitrary: "is" rule: iwf.induct)
-    case (iwf n p ants s' i' \<Gamma> c "is")
-   
+    case (iwf n p  s' a' \<Gamma> ants c "is")
+
+    have "iwf lc (INode n p a' s' ants) (\<Gamma> \<turnstile> c)"
+      using iwf(1,2,3,4,5)
+      by (auto intro!: iwf.intros elim!: list_all2_mono)
+
     show ?case
     proof(cases "is")
       case Nil
-      with `tree_at (INode n p i' s' ants) is = HNode i s`
+      with `tree_at (INode n p a' s' ants) is = HNode i s`
       show ?thesis by auto
     next
-      case (Cons ip "is'")
-      with `is \<in> it_paths (INode n p i' s' ants)`
-      obtain it where "ip |\<in>| inPorts n" and [simp]: "ants ip = Some it" and "is' \<in> it_paths it"
+      case (Cons i' "is'")
+      with `is \<in> it_paths (INode n p a' s' ants)`
+      have "i' < length ants" and "is' \<in> it_paths (ants ! i')"
         by (auto elim: it_paths_ConsE)
 
-      let ?\<Gamma>' = "(\<lambda>h. subst s' (freshen i' (labelsOut n h))) |`| hyps_for n ip"
-      
-      from `tree_at (INode n p i' s' ants) is = HNode i s`
-      have "tree_at it is' = HNode i s" using Cons `ants ip = Some it` by simp
+      let ?\<Gamma>' = "(\<lambda>h. subst s' (freshen a' (labelsOut n h))) |`| hyps_for n (inPorts' n ! i')"
 
-      from  iwf.IH[OF `ip |\<in>| _`] `ants ip = Some it` `is' \<in> it_paths it` this
-      have  "subst s (freshen i anyP) \<in> hyps_along it is'
+      from `tree_at (INode n p a' s' ants) is = HNode i s`
+      have "tree_at (ants ! i') is' = HNode i s" using Cons by simp
+
+      from  iwf.IH `i' < length ants`  `is' \<in> it_paths (ants ! i')` this
+      have  "subst s (freshen i anyP) \<in> hyps_along (ants ! i') is'
         \<or> subst s (freshen i anyP) |\<in>| ?\<Gamma>' |\<union>| \<Gamma> \<and> subst s (freshen i anyP) |\<notin>| ass_forms"
-        by auto
+        by (auto dest: list_all2_nthD2)
       moreover
-      from  `is \<in> it_paths (INode n p i' s' ants)`
-      have "hyps_along (INode n p i' s' ants) is = fset ?\<Gamma>' \<union> hyps_along it is'"
-        using `is = _` by (simp add: hyps_along_Cons)
+      from  `is \<in> it_paths (INode n p a' s' ants)`
+      have "hyps_along (INode n p a' s' ants) is = fset ?\<Gamma>' \<union> hyps_along (ants ! i') is'"
+        using `is = _`
+        by (simp add: hyps_along_Cons[OF `iwf lc (INode n p a' s' ants) (\<Gamma> \<turnstile> c)`])
       ultimately
       show ?thesis by auto
     qed
@@ -463,11 +506,12 @@ qed
 fun fv_entailment :: "'form entailment \<Rightarrow> 'var set" where
   "fv_entailment (\<Gamma> \<turnstile> c) = Union (lconsts ` fset \<Gamma>) \<union> lconsts c"
 
-definition hyp_port_for' where
+definition hyp_port_for' :: "('form, 'rule, 'subst, 'a) itree \<Rightarrow> nat list \<Rightarrow> 'form \<Rightarrow> nat list \<times> nat \<times> ('form, 'var) out_port" where
   "hyp_port_for' t is f = (SOME x.
    (case x of (is', i, h) \<Rightarrow> 
       prefixeq (is' @ [i]) is \<and>
-      hyps (iNodeOf (tree_at t is')) h = Some i \<and>
+      i < length (inPorts' (iNodeOf (tree_at t is'))) \<and>
+      hyps (iNodeOf (tree_at t is')) h =  Some (inPorts' (iNodeOf (tree_at t is')) ! i) \<and>
       f = subst (iSubst  (tree_at t is')) (freshen (iAnnot (tree_at t is')) (labelsOut (iNodeOf (tree_at t is')) h))
    ))"
 
@@ -475,13 +519,17 @@ lemma hyp_port_for_spec':
   assumes "f \<in> hyps_along t is"
   shows "(case hyp_port_for' t is f of (is', i, h) \<Rightarrow> 
       prefixeq (is' @ [i]) is \<and>
-      hyps (iNodeOf (tree_at t is')) h = Some i \<and>
+      i < length (inPorts' (iNodeOf (tree_at t is'))) \<and>
+      hyps (iNodeOf (tree_at t is')) h =  Some (inPorts' (iNodeOf (tree_at t is')) ! i) \<and>
       f = subst (iSubst  (tree_at t is')) (freshen (iAnnot (tree_at t is')) (labelsOut (iNodeOf (tree_at t is')) h)))"
 using assms unfolding hyps_along.simps hyp_port_for'_def by -(rule someI_ex, blast)
 
-definition hyp_port_path_for where "hyp_port_path_for t is f = fst (hyp_port_for' t is f)"
-definition hyp_port_i_for where "hyp_port_i_for t is f = fst (snd (hyp_port_for' t is f))"
-definition hyp_port_h_for where "hyp_port_h_for t is f = snd (snd (hyp_port_for' t is f))"
+definition hyp_port_path_for :: "('form, 'rule, 'subst, 'a) itree \<Rightarrow> nat list \<Rightarrow> 'form \<Rightarrow> nat list"
+  where "hyp_port_path_for t is f = fst (hyp_port_for' t is f)"
+definition hyp_port_i_for ::  "('form, 'rule, 'subst, 'a) itree \<Rightarrow> nat list \<Rightarrow> 'form \<Rightarrow> nat"
+  where "hyp_port_i_for t is f = fst (snd (hyp_port_for' t is f))"
+definition hyp_port_h_for :: "('form, 'rule, 'subst, 'a) itree \<Rightarrow> nat list \<Rightarrow> 'form \<Rightarrow> ('form, 'var) out_port"
+  where "hyp_port_h_for t is f = snd (snd (hyp_port_for' t is f))"
 
 lemma hyp_port_prefixeq:
   assumes "f \<in> hyps_along t is"
@@ -502,7 +550,7 @@ using assms by (rule it_paths_prefix[OF _ hyp_port_prefix] )
 
 lemma hyp_port_hyps:
   assumes "f \<in> hyps_along t is"
-  shows "hyps (iNodeOf (tree_at t (hyp_port_path_for t is f))) (hyp_port_h_for t is f) = Some (hyp_port_i_for t is f)"
+  shows "hyps (iNodeOf (tree_at t (hyp_port_path_for t is f))) (hyp_port_h_for t is f) = Some (inPorts' (iNodeOf (tree_at t (hyp_port_path_for t is f))) ! hyp_port_i_for t is f)"
 using hyp_port_for_spec'[OF assms] unfolding hyp_port_path_for_def hyp_port_i_for_def hyp_port_h_for_def by auto
 
 lemma hyp_port_outPort:
@@ -523,8 +571,7 @@ lemma iwf_outPort:
 using assms
   apply (induction arbitrary: x rule: iwf.induct)
   apply (case_tac x)
-  apply (auto elim!: it_paths_ConsE)
-  apply force
+  apply (auto elim!: it_paths_ConsE dest: list_all2_nthD2)
   done
 
 fun inits where

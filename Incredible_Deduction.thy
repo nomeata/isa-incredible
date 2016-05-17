@@ -571,11 +571,21 @@ begin
   lemma Rule_in_nodes[simp]:
     "Rule r \<in> sset nodes \<longleftrightarrow> r \<in> sset rules" by (auto simp add: nodes_def stream.set_map)
 
-  fun inPorts where
+  fun inPorts' :: "('form, 'rule) graph_node \<Rightarrow> ('form, 'var) in_port list"  where
+    "inPorts' (Rule r) = antecedent r"
+   |"inPorts' (Assumption r) = []"
+   |"inPorts' (Conclusion r) = [ plain_ant r ]"
+   |"inPorts' Helper  = [ plain_ant anyP ]"
+
+  fun inPorts :: "('form, 'rule) graph_node \<Rightarrow> ('form, 'var) in_port fset"  where
     "inPorts (Rule r) = f_antecedent r"
    |"inPorts (Assumption r) = {||}"
    |"inPorts (Conclusion r) = {| plain_ant r |}"
    |"inPorts Helper  = {| plain_ant anyP |}"
+
+  lemma inPorts_fset_of:
+    "inPorts n = fset_from_list (inPorts' n)"
+    by (cases n rule: inPorts.cases) (auto simp: fmember.rep_eq f_antecedent_def)
 
   definition outPortsRule where
     "outPortsRule r = ffUnion ((\<lambda> a. (\<lambda> h. Hyp h a) |`| a_hyps a) |`| f_antecedent r) |\<union>| Reg |`| f_consequent r"
