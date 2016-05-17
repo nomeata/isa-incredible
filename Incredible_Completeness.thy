@@ -1,5 +1,5 @@
 theory Incredible_Completeness
-imports Natural_Deduction Incredible_Deduction Incredible_Trees
+imports Natural_Deduction Incredible_Deduction Build_Incredible_Tree
 begin
 
 type_synonym 'form vertex = "('form \<times> nat list)"
@@ -39,27 +39,23 @@ lemma
   using solved assms
   by (force simp add: solved_def)
 
-text {* To get the list of vertices, build the tree with local freshness first. *}
+abbreviation it' where
+  "it' c \<equiv> globalize [0] (freshenLC v_away) ( to_it (ts c))"
 
-abbreviation pre_it where
-  "pre_it c \<equiv> to_it (ts c)"
-
-lemma iwf_pre_it:
+lemma local_iwf_it:
   assumes "c \<in> set conclusions"
-  shows "local_iwf (pre_it c) (fst (root (ts c)))"
-  using assms by (auto intro!: iwf_to_it ts_finite ts_wf)
+  shows "local_iwf (it' c) (fst (root (ts c)))"
+  using assms
+    by (auto intro!: iwf_globalize' iwf_to_it ts_finite ts_wf)
 
 definition vertices :: "'form vertex fset"  where
-  "vertices = Abs_fset (Union ( set (map (\<lambda> c. insert (c, []) ((\<lambda> p. (c, 0 # p)) ` (it_paths (pre_it c))))  conclusions)))"
+  "vertices = Abs_fset (Union ( set (map (\<lambda> c. insert (c, []) ((\<lambda> p. (c, 0 # p)) ` (it_paths (it' c))))  conclusions)))"
 
 text {* For the remaining time, work with the tree with global freshness. *}
 
-abbreviation it' where
-  "it' c \<equiv> globalize (to_it (ts c))"
-
 lemma mem_vertices: "v |\<in>| vertices \<longleftrightarrow>  (fst v \<in> set conclusions \<and> (snd v = [] \<or> snd v \<in> (op # 0) ` it_paths (it' (fst v))))"
   unfolding vertices_def fmember.rep_eq ffUnion.rep_eq 
-  by (cases v)(auto simp add: Abs_fset_inverse Bex_def it_paths_globalize)
+  by (cases v)(auto simp add: Abs_fset_inverse Bex_def )
 
 lemma prefixeq_vertices: "(c,is) |\<in>| vertices \<Longrightarrow> prefixeq is' is \<Longrightarrow> (c, is') |\<in>| vertices"
   by (cases is') (auto simp add: mem_vertices intro!: imageI elim: it_paths_prefixeq)
@@ -86,7 +82,8 @@ using assms by (cases v; rename_tac "is"; case_tac "is"; auto)
 lemma global_iwf_it:
   assumes "c \<in> set conclusions"
   shows "global_iwf (it' c) (fst (root (ts c)))"
-  using assms by (auto intro!: iwf_to_it globalized ts_finite ts_wf)
+  using assms
+  sorry
 
 text {* Start building the graph *}
 
@@ -141,12 +138,12 @@ lemma snd_edge_at[simp]: "snd (edge_at c is) = edge_to c is" by (simp add: edge_
 
 lemma pre_hyps_exist:
   assumes "c \<in> set conclusions"
-  assumes "is \<in> it_paths (pre_it c)"
-  assumes "tree_at (pre_it c) is = (HNode i s)"
-  shows "subst s (freshen i anyP) \<in> hyps_along (pre_it c) is"
+  assumes "is \<in> it_paths (it' c)"
+  assumes "tree_at (it' c) is = (HNode i s)"
+  shows "subst s (freshen i anyP) \<in> hyps_along (it' c) is"
 proof-
   from assms(1)
-  have "local_iwf (pre_it c) (fst (root (ts c)))" by (rule iwf_pre_it)
+  have "local_iwf (it' c) (fst (root (ts c)))" by (rule local_iwf_it)
   moreover
   note assms(2,3)
   moreover

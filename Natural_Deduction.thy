@@ -3,17 +3,10 @@ imports
   Main
   "$AFP/Abstract_Completeness/Abstract_Completeness"
   Abstract_Formula
+  Entailment
 begin
 
 datatype 'rule NatRule = Axiom | NatRule 'rule | Cut
-
-type_synonym 'form entailment = "('form fset \<times> 'form)"
-
-abbreviation entails :: "'form fset \<Rightarrow> 'form \<Rightarrow> 'form entailment" (infix "\<turnstile>" 50)
-  where "a \<turnstile> c \<equiv> (a, c)"
-
-fun add_ctxt :: "'form fset \<Rightarrow> 'form entailment \<Rightarrow> 'form entailment" where
-  "add_ctxt \<Delta> (\<Gamma> \<turnstile> c) = (\<Gamma> |\<union>| \<Delta> \<turnstile> c)"
 
 locale ND_Rules_Simple = 
   fixes natEff :: "'rule \<Rightarrow> 'form \<Rightarrow> 'form entailment fset \<Rightarrow> bool"

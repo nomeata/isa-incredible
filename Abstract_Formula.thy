@@ -20,6 +20,7 @@ locale Abstract_Formulas =
   assumes subst_closed: "closed f \<Longrightarrow> subst s f = f"
   assumes closed_no_lconsts: "closed f \<Longrightarrow> lconsts f = {}"
   assumes fv_subst: "lconsts (subst s f) \<subseteq> lconsts f \<union> subst_lconsts s"
+  assumes rename_rename: "renameLCs p1 (renameLCs p2 f) = renameLCs (p1 \<circ> p2) f"
   assumes rename_subst: "renameLCs p (subst s f) = subst (subst_renameLCs p s) (renameLCs p f)"
   assumes lconsts_anyP: "lconsts anyP = {}"
   assumes anyP_is_any: "\<exists> s. subst s anyP = f"
