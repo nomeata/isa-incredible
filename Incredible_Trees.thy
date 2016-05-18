@@ -525,19 +525,11 @@ proof (induction t "\<Gamma> \<turnstile> c" arbitrary: \<Gamma> c rule: iwf.ind
 next
 oops
 
-definition rerename :: "nat \<Rightarrow> nat \<Rightarrow> ('var \<Rightarrow> 'var) \<Rightarrow> ('var \<Rightarrow> 'var)" where "rerename = undefined"
-
 definition isidx :: "nat list \<Rightarrow> nat" where "isidx xs = to_nat (Some xs)"
-
+definition v_away :: "nat" where "v_away = to_nat (None :: nat list option)"
 lemma isidx_inj[simp]: "isidx xs = isidx ys \<longleftrightarrow> xs = ys"
   unfolding isidx_def by simp
 
-
-lemma rerename_freshen_comp: "rerename i (isidx is) f \<circ> freshenLC i = freshenLC (isidx is)"
-  sorry
-
-
-definition v_away :: "nat" where "v_away = to_nat (None :: nat list option)"
 
 definition mapWithIndex where "mapWithIndex f xs = map (\<lambda> (i,t) . f i t) (List.enumerate 0 xs)"
 lemma mapWithIndex_cong [fundef_cong]:

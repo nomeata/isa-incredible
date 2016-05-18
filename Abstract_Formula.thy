@@ -22,6 +22,7 @@ locale Abstract_Formulas =
   assumes fv_subst: "lconsts (subst s f) \<subseteq> lconsts f \<union> subst_lconsts s"
   assumes rename_rename: "renameLCs p1 (renameLCs p2 f) = renameLCs (p1 \<circ> p2) f"
   assumes rename_subst: "renameLCs p (subst s f) = subst (subst_renameLCs p s) (renameLCs p f)"
+  assumes subst_renameLCs_cong: "(\<And> x. x \<in> subst_lconsts s \<Longrightarrow> f1 x = f2 x) \<Longrightarrow> subst_renameLCs f1 s = subst_renameLCs f2 s"
   assumes lconsts_anyP: "lconsts anyP = {}"
   assumes empty_subst: "\<exists> s. (\<forall> f. subst s f = f) \<and> subst_lconsts s = {}"
   assumes anyP_is_any: "\<exists> s. subst s anyP = f"
@@ -55,6 +56,29 @@ begin
 
   lemma freshenLC_range_eq_iff[simp]: "freshenLC a v \<in> range (freshenLC a') \<longleftrightarrow> a = a'"
     by auto
+
+  definition rerename :: "nat \<Rightarrow> nat \<Rightarrow> ('var \<Rightarrow> 'var) \<Rightarrow> ('var \<Rightarrow> 'var)" where
+    "rerename from to f x = (if x \<in> range (freshenLC from) then freshenLC to (inv (freshenLC from) x) else f x)"
+  
+  lemma inj_freshenLC[simp]: "inj (freshenLC i)"
+    by (rule injI) simp
+  
+  lemma rerename_freshen[simp]: "rerename i (isidx is) f (freshenLC i x) = freshenLC (isidx is) x"
+    unfolding rerename_def by simp
+  
+  lemma rerename_freshen_comp: "rerename i (isidx is) f \<circ> freshenLC i = freshenLC (isidx is)"
+    by auto
+
+  lemma range_rerename: "range (rerename from to f) \<subseteq> range (freshenLC to) \<union> range f"
+    by (auto simp add: rerename_def split: if_splits)
+
+  lemma rerename_noop:
+      "x \<notin> range (freshenLC from)  \<Longrightarrow> rerename from to f x = f x"
+    by (auto simp add: rerename_def split: if_splits)
+
+  lemma rerename_subst_noop:
+      "subst_lconsts s \<inter> range (freshenLC from) = {}  \<Longrightarrow> subst_renameLCs (rerename from to f) s = subst_renameLCs f s"
+      by (intro subst_renameLCs_cong rerename_noop) auto
 end
 
 datatype ('form, 'var) antecedent =
