@@ -419,7 +419,7 @@ qed
 fun fv_entailment :: "'form entailment \<Rightarrow> 'var set" where
   "fv_entailment (\<Gamma> \<turnstile> c) = Union (lconsts ` fset \<Gamma>) \<union> lconsts c"
 
-definition hyp_port_for' :: "('form, 'rule, 'subst, 'a) itree \<Rightarrow> nat list \<Rightarrow> 'form \<Rightarrow> nat list \<times> nat \<times> ('form, 'var) out_port" where
+definition hyp_port_for' :: "('form, 'rule, 'subst, 'var) itree \<Rightarrow> nat list \<Rightarrow> 'form \<Rightarrow> nat list \<times> nat \<times> ('form, 'var) out_port" where
   "hyp_port_for' t is f = (SOME x.
    (case x of (is', i, h) \<Rightarrow> 
       prefixeq (is' @ [i]) is \<and>
@@ -437,11 +437,11 @@ lemma hyp_port_for_spec':
       f = subst (iSubst  (tree_at t is')) (freshen (iAnnot (tree_at t is')) (labelsOut (iNodeOf (tree_at t is')) h)))"
 using assms unfolding hyps_along.simps hyp_port_for'_def by -(rule someI_ex, blast)
 
-definition hyp_port_path_for :: "('form, 'rule, 'subst, 'a) itree \<Rightarrow> nat list \<Rightarrow> 'form \<Rightarrow> nat list"
+definition hyp_port_path_for :: "('form, 'rule, 'subst, 'var) itree \<Rightarrow> nat list \<Rightarrow> 'form \<Rightarrow> nat list"
   where "hyp_port_path_for t is f = fst (hyp_port_for' t is f)"
-definition hyp_port_i_for ::  "('form, 'rule, 'subst, 'a) itree \<Rightarrow> nat list \<Rightarrow> 'form \<Rightarrow> nat"
+definition hyp_port_i_for ::  "('form, 'rule, 'subst, 'var) itree \<Rightarrow> nat list \<Rightarrow> 'form \<Rightarrow> nat"
   where "hyp_port_i_for t is f = fst (snd (hyp_port_for' t is f))"
-definition hyp_port_h_for :: "('form, 'rule, 'subst, 'a) itree \<Rightarrow> nat list \<Rightarrow> 'form \<Rightarrow> ('form, 'var) out_port"
+definition hyp_port_h_for :: "('form, 'rule, 'subst, 'var) itree \<Rightarrow> nat list \<Rightarrow> 'form \<Rightarrow> ('form, 'var) out_port"
   where "hyp_port_h_for t is f = snd (snd (hyp_port_for' t is f))"
 
 lemma hyp_port_prefixeq:
@@ -545,6 +545,17 @@ lemma iAnnot_globalize:
   apply (auto elim!: it_paths_ConsE)
   done
 
+lemma all_local_consts_listed':
+  assumes "n \<in> sset nodes"
+  assumes "p |\<in>| inPorts n"
+  shows "lconsts (a_conc p) \<union> (\<Union>(lconsts ` fset (a_hyps p))) \<subseteq> a_fresh p "
+  using assms
+  by (auto simp add: nodes_def stream.set_map lconsts_anyP closed_no_lconsts conclusions_closed fmember.rep_eq f_antecedent_def dest!: all_local_consts_listed)
+
+lemma no_local_consts_in_consequences':
+  "n \<in> sset nodes \<Longrightarrow> Reg p |\<in>| outPorts n \<Longrightarrow>  lconsts p = {}"
+  using no_local_consts_in_consequences no_empty_conclusions
+  by (auto simp add: nodes_def stream.set_map lconsts_anyP closed_no_lconsts assumptions_closed fmember.rep_eq)
 
 lemma iwf_globalize:
   assumes "local_iwf t (\<Gamma> \<turnstile> c)"
@@ -566,7 +577,10 @@ proof (induction t "\<Gamma> \<turnstile> c" arbitrary: "is" f \<Gamma> c rule: 
     let ?c' = "subst (subst_renameLCs f s) (freshen (isidx is) (labelsIn n ?ip))"
 
     assume "i' < length (inPorts' n)"
-    hence subset_V: "?V \<subseteq> all_local_vars n"
+    hence "(inPorts' n ! i') |\<in>| inPorts n" by (simp add: inPorts_fset_of)
+
+    from `i' < length (inPorts' n)`
+    have subset_V: "?V \<subseteq> all_local_vars n"
       unfolding all_local_vars_def
       by (auto simp add: inPorts_fset_of set_conv_nth)
 
@@ -578,8 +592,11 @@ proof (induction t "\<Gamma> \<turnstile> c" arbitrary: "is" f \<Gamma> c rule: 
     hence rerename_subst: "subst_renameLCs ?f' s = subst_renameLCs f s"
       by (rule rerename_subst_noop)
 
-    have subset_conc: "lconsts (a_conc (inPorts' n ! i')) \<subseteq> ?V" sorry
-
+    from all_local_consts_listed'[OF ` n \<in> sset nodes` `(inPorts' n ! i') |\<in>| inPorts n`]
+    have subset_conc: "lconsts (a_conc (inPorts' n ! i')) \<subseteq> ?V"
+      and subset_hyp': "\<And> hyp . hyp |\<in>| a_hyps (inPorts' n ! i') \<Longrightarrow> lconsts hyp \<subseteq> ?V"
+      by (auto simp add: fmember.rep_eq)
+      
     from List.list_all2_nthD[OF `list_all2 _ _ _` `i' < length (inPorts' n)`,simplified]
     have "plain_iwf ?t
            (renameLCs ?f' |`| ((\<lambda>h. subst s (freshen i (labelsOut n h))) |`| hyps_for n ?ip |\<union>|  \<Gamma>) \<turnstile>
@@ -604,7 +621,14 @@ proof (induction t "\<Gamma> \<turnstile> c" arbitrary: "is" f \<Gamma> c rule: 
     proof(rule fimage_cong[OF refl])
       fix hyp
       assume "hyp |\<in>| hyps_for n (inPorts' n ! i')"
-      have subset_hyp: "lconsts (labelsOut n hyp) \<subseteq> ?V" sorry
+      hence "labelsOut n hyp |\<in>| a_hyps (inPorts' n ! i')"
+        apply (cases hyp)
+        apply auto
+        apply (cases n)
+        apply (auto split: if_splits)
+        done
+      from subset_hyp'[OF this]
+      have subset_hyp: "lconsts (labelsOut n hyp) \<subseteq> ?V".
       
       show "subst (subst_renameLCs ?f' s) (renameLCs ?f' (freshen i (labelsOut n hyp))) =
             subst (subst_renameLCs f s)  (freshen (isidx is) (labelsOut n hyp))"
@@ -632,8 +656,8 @@ proof (induction t "\<Gamma> \<turnstile> c" arbitrary: "is" f \<Gamma> c rule: 
   moreover
   have "no_fresh_check n (isidx is) (subst_renameLCs f s) (renameLCs f |`| \<Gamma> \<turnstile> renameLCs f c)"..
   moreover
-  from  `Reg p |\<in>| outPorts n`
-  have "lconsts p = {}" sorry
+  from `n \<in> sset nodes` `Reg p |\<in>| outPorts n`
+  have "lconsts p = {}" by (rule no_local_consts_in_consequences')
   with `c = subst s (freshen i p)`
   have "renameLCs f c = subst (subst_renameLCs f s) (freshen (isidx is) p)"
     by (simp add: rename_subst rename_closed freshen_closed)

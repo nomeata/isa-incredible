@@ -110,6 +110,16 @@ locale Abstract_Rules =
   fixes consequent :: "'rule \<Rightarrow> 'form list"
   and rules :: "'rule stream"
   assumes no_empty_conclusions: "\<forall>xs\<in>sset rules. consequent xs \<noteq> []"
+
+  assumes no_local_consts_in_consequences: "\<forall>xs\<in>sset rules. lconsts ` set (consequent xs) = {}"
+  assumes no_multiple_local_consts:
+    "\<And> r i i .  r \<in> sset rules \<Longrightarrow>
+                 i < length (antecedent r) \<Longrightarrow>
+                 i' < length (antecedent r) \<Longrightarrow>
+                 a_fresh (antecedent r ! i) \<inter> a_fresh (antecedent r ! i') = {} \<or> i = i'"
+  assumes all_local_consts_listed:
+    "\<And> r p. r \<in> sset rules \<Longrightarrow> p \<in> set (antecent r) \<Longrightarrow>
+        lconsts (a_conc p) \<union> (\<Union>(lconsts ` fset (a_hyps p))) \<subseteq> a_fresh p "
 begin
   definition f_antecedent :: "'rule \<Rightarrow> ('form, 'var) antecedent fset"
     where "f_antecedent r = fset_from_list (antecedent r)"
@@ -165,5 +175,6 @@ begin
     shows "subst s (freshen a pf) |\<in>| conc_forms"
       using assms by simp
 end
+
 
 end

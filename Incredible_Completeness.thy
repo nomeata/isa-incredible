@@ -587,19 +587,13 @@ proof
   qed
 qed
 
-lemma  disjoint_fresh_vars:
-  assumes "r \<in> sset rules"
-  assumes "i < length (antecedent r)"
-  assumes "i' < length (antecedent r)"
-  shows "a_fresh (antecedent r ! i) \<inter> a_fresh (antecedent r ! i') = {} \<or> i = i'"
-  sorry
 
 lemma node_disjoint_fresh_vars:
   assumes "n \<in> sset nodes"
   assumes "i < length (inPorts' n)"
   assumes "i' < length (inPorts' n)"
   shows "a_fresh (inPorts' n ! i) \<inter> a_fresh (inPorts' n ! i') = {} \<or> i = i'"
-  using assms disjoint_fresh_vars
+  using assms no_multiple_local_consts
   by (fastforce simp add: nodes_def stream.set_map)
 
 sublocale Well_Scoped_Instantiation  freshenLC renameLCs lconsts closed subst subst_lconsts subst_renameLCs anyP inPorts outPorts nodeOf hyps  nodes vertices labelsIn labelsOut vidx inst edges local_vars
