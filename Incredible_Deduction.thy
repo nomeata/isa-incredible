@@ -647,7 +647,6 @@ locale Tasked_Proof_Graph =
 
     and antecedent :: "'rule \<Rightarrow> ('form, 'var) antecedent list" 
     and consequent :: "'rule \<Rightarrow> 'form list" 
-    and fresh_vars :: "'rule \<Rightarrow> 'var set"
     and rules :: "'rule stream" 
 
     and assumptions :: "'form list" 

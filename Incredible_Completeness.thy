@@ -712,8 +712,9 @@ proof
 qed
 
 sublocale Scoped_Proof_Graph freshenLC renameLCs lconsts closed subst subst_lconsts subst_renameLCs anyP  inPorts outPorts nodeOf hyps nodes vertices labelsIn labelsOut vidx inst edges local_vars..
-   
-sublocale Tasked_Proof_Graph freshenLC renameLCs lconsts closed subst subst_lconsts subst_renameLCs anyP antecedent consequent fresh_vars rules assumptions conclusions
+
+text \<open>interpretation of @{term Tasked_Proof_Graph} has to be named to avoid name clashes in @{term Abstract_Task}.\<close>
+sublocale tpg:Tasked_Proof_Graph freshenLC renameLCs lconsts closed subst subst_lconsts subst_renameLCs anyP antecedent consequent rules assumptions conclusions
   vertices nodeOf edges vidx inst
 proof
   show "set (map Conclusion conclusions) \<subseteq> nodeOf ` fset vertices"
