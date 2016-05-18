@@ -12,10 +12,6 @@ as a (tree-shaped) incredible graph, but where the structure is still given by t
 and not by a set of edges etc.\<close>
 
 
-lemma prefixeq_snocD: "prefixeq (xs@[x]) ys \<Longrightarrow> prefix xs ys"
-  by (simp add: prefixI' prefix_order.dual_order.strict_trans1)
-
-
 section {* Elaborated tree (annotation and substitution) *}
 
 text {*
@@ -174,9 +170,6 @@ lemma it_paths_prefixeq:
   shows "is' \<in> it_paths t"
 using assms it_paths_prefix  prefixI by fastforce
 
-lemma prefixeq_butlast: "prefixeq (butlast xs) xs"
-  by (metis append_butlast_last_id butlast.simps(1) prefixI' prefix_order.eq_iff prefix_order.less_imp_le)
-
 lemma it_paths_butlast:
   assumes "is \<in> it_paths t"
   shows "butlast is \<in> it_paths t"
@@ -266,16 +259,6 @@ inductive_set hyps_along for t "is" where
 
 lemma hyps_along_Nil[simp]: "hyps_along t [] = {}"
   by (auto simp add: hyps_along.simps)
-
-lemma prefixeq_app_Cons_elim:
-  assumes "prefixeq (xs@[y]) (z#zs)"
-  obtains "xs = []" and "y = z"
-   | xs' where "xs = z#xs'" and "prefixeq (xs'@[y]) zs"
-using assms by (cases xs) auto
-
-lemma prefixeq_app_Cons_simp:
-  "prefixeq (xs@[y]) (z#zs) \<longleftrightarrow> (xs = [] \<and> y = z \<or> xs = z#tl xs \<and> prefixeq (tl xs@[y]) zs)"
- by (cases xs) auto
 
 lemma hyps_along_Cons:
   assumes "iwf fc t ent"
