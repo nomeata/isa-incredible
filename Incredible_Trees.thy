@@ -576,8 +576,12 @@ using assms
 proof (induction t "\<Gamma> \<turnstile> c" arbitrary: "is" f \<Gamma> c rule: iwf.induct)
   case (iwf n p s i \<Gamma> ants c "is" f)
 
-  have rerename_subst: "subst_renameLCs (rerename i (isidx is) f) s = subst_renameLCs f s"
-      sorry
+  from `local_fresh_check n i s (\<Gamma> \<turnstile> c)`
+  have "\<And> ip . ip |\<in>| inPorts n  \<Longrightarrow> freshenLC i ` (local_vars n ip) \<inter> subst_lconsts s = {}" 
+    by (rule local_fresh_check.cases) simp
+  have "subst_lconsts s \<inter> range (freshenLC i) = {}" sorry
+  hence rerename_subst: "subst_renameLCs (rerename i (isidx is) f) s = subst_renameLCs f s"
+    by (rule rerename_subst_noop)
 
   note `n \<in> sset nodes`
   moreover
