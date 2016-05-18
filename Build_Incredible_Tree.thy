@@ -2,6 +2,23 @@ theory Build_Incredible_Tree
 imports Incredible_Trees Natural_Deduction
 begin
 
+lemma image_eq_to_f:
+  assumes  "f1 ` S1 = f2 ` S2"
+  obtains f where "\<And> x. x \<in> S2 \<Longrightarrow> f x \<in> S1 \<and> f1 (f x) = f2 x"
+proof (atomize_elim)
+  from assms
+  have "\<forall>x. x \<in> S2 \<longrightarrow> (\<exists> y. y \<in> S1 \<and> f1 y = f2 x)" by (metis image_iff)
+  thus "\<exists>f. \<forall>x. x \<in> S2 \<longrightarrow> f x \<in> S1 \<and> f1 (f x) = f2 x" by metis
+qed
+
+context includes fset.lifting
+begin
+lemma fimage_eq_to_f:
+  assumes  "f1 |`| S1 = f2 |`| S2"
+  obtains f where "\<And> x. x |\<in>| S2 \<Longrightarrow> f x |\<in>| S1 \<and> f1 (f x) = f2 x"
+using assms apply transfer using image_eq_to_f by metis
+end
+
 context  Abstract_Task
 begin
 
