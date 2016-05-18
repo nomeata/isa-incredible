@@ -42,9 +42,9 @@ lemma
 abbreviation it' where
   "it' c \<equiv> globalize [fidx conc_forms c, 0] (freshenLC v_away) (to_it (ts c))"
 
-lemma local_iwf_it:
+lemma iwf_it:
   assumes "c \<in> set conclusions"
-  shows "local_iwf (it' c) (fst (root (ts c)))"
+  shows "plain_iwf (it' c) (fst (root (ts c)))"
   using assms
   apply (auto simp add: ts_conc conclusions_closed intro!: iwf_globalize' iwf_to_it ts_finite ts_wf)
   by (meson assumptions_closed fset_mp mem_ass_forms mem_conc_forms ts_context)
@@ -80,12 +80,6 @@ lemma vertices_induct[consumes 1, case_names None Some]:
   shows "P v"
 using assms by (cases v; rename_tac "is"; case_tac "is"; auto)
 
-lemma global_iwf_it:
-  assumes "c \<in> set conclusions"
-  shows "global_iwf (it' c) (fst (root (ts c)))"
-  using assms
-  sorry
-
 text {* Start building the graph *}
 
 fun nodeOf :: "'form vertex \<Rightarrow> ('form, 'rule) graph_node" where
@@ -102,7 +96,7 @@ lemma terminal_is_nil[simp]: "v |\<in>| vertices \<Longrightarrow> outPorts (nod
  apply (induction v rule: nodeOf.induct)
  apply auto
  apply (erule (1) iNodeOf_outPorts[rotated])
- apply (erule global_iwf_it)
+ apply (erule iwf_it)
  done
 
 
@@ -137,23 +131,6 @@ lemma fst_edge_at[simp]: "fst (edge_at c is) = edge_from c is" by (simp add: edg
 lemma snd_edge_at[simp]: "snd (edge_at c is) = edge_to c is" by (simp add: edge_at_def)
 
 
-lemma pre_hyps_exist:
-  assumes "c \<in> set conclusions"
-  assumes "is \<in> it_paths (it' c)"
-  assumes "tree_at (it' c) is = (HNode i s)"
-  shows "subst s (freshen i anyP) \<in> hyps_along (it' c) is"
-proof-
-  from assms(1)
-  have "local_iwf (it' c) (fst (root (ts c)))" by (rule local_iwf_it)
-  moreover
-  note assms(2,3)
-  moreover
-  have "fst (fst (root (ts c))) |\<subseteq>| ass_forms"
-    by (simp add: assms(1) ts_context)
-  ultimately
-  show ?thesis by (rule iwf_hyps_exist)
-qed
-
 lemma hyps_exist':
   assumes "c \<in> set conclusions"
   assumes "is \<in> it_paths (it' c)"
@@ -161,7 +138,7 @@ lemma hyps_exist':
   shows "subst s (freshen i anyP) \<in> hyps_along (it' c) is"
 proof-
   from assms(1)
-  have "global_iwf (it' c) (fst (root (ts c)))" by (rule global_iwf_it)
+  have "plain_iwf (it' c) (fst (root (ts c)))" by (rule iwf_it)
   moreover
   note assms(2,3)
   moreover
@@ -201,7 +178,7 @@ lemma edge_from_valid_out_port:
   assumes "c \<in> set conclusions"
   shows "valid_out_port (edge_from c p)"
 using assms
-by (auto simp add: edge_from_def intro: iwf_outPort global_iwf_it)
+by (auto simp add: edge_from_def intro: iwf_outPort iwf_it)
 
 lemma edge_to_valid_in_port:
   assumes "p \<in> it_paths (it' c)"
@@ -210,7 +187,7 @@ lemma edge_to_valid_in_port:
   using assms
   apply (auto simp add: edge_to_def inPorts_fset_of split: list.split elim!: it_paths_SnocE)
   apply (rule nth_mem)
-  apply (drule (1) iwf_length_inPorts[OF global_iwf_it])
+  apply (drule (1) iwf_length_inPorts[OF iwf_it])
   apply auto
   done
 
@@ -387,7 +364,7 @@ sublocale Port_Graph nodes inPorts outPorts vertices nodeOf edges
 proof
   show "nodeOf ` fset vertices \<subseteq> sset nodes"
     apply (auto simp add: fmember.rep_eq[symmetric] mem_vertices)
-    apply (auto simp add: stream.set_map dest: iNodeOf_tree_at[OF global_iwf_it])
+    apply (auto simp add: stream.set_map dest: iNodeOf_tree_at[OF iwf_it])
     done
   next
 
@@ -489,7 +466,7 @@ proof
       proof (cases "tree_at (it' c) is")
         case INode
         hence "\<not> isHNode (tree_at (it' c) is)" by simp
-        from iwf_length_inPorts_not_HNode[OF global_iwf_it[OF `c \<in> set conclusions`]  `is \<in> it_paths (it' c)` this]
+        from iwf_length_inPorts_not_HNode[OF iwf_it[OF `c \<in> set conclusions`]  `is \<in> it_paths (it' c)` this]
              `i < length (inPorts' (iNodeOf (tree_at (it' c) is)))`
         have "i < length (iAnts (tree_at (it' c) is))" by simp
         with `is \<in> it_paths (it' c)`
@@ -561,7 +538,7 @@ proof
         using regular_edge Nil by (simp add: labelAtOut_def edge_at_def edge_from_def)
       also have "vidx v\<^sub>1 = iAnnot ?t'" by (simp add:  Nil)
       also have "subst (iSubst ?t') (freshen (iAnnot ?t') (iOutPort ?t')) = snd (fst (root (ts c)))"
-        unfolding iwf_subst_freshen_outPort[OF global_iwf_it[OF `c \<in> set conclusions`]]..
+        unfolding iwf_subst_freshen_outPort[OF iwf_it[OF `c \<in> set conclusions`]]..
       also have "\<dots> = c" using `c \<in> set conclusions` by (simp add: ts_conc)
       also have "\<dots> = labelAtIn v\<^sub>2 p\<^sub>2"
         using  `c \<in> set conclusions`  regular_edge Nil
@@ -576,7 +553,7 @@ proof
       also have "vidx v\<^sub>1 = iAnnot ?t1" using snoc regular_edge(3) by simp
       also have "subst (iSubst ?t1) (freshen (iAnnot ?t1) (iOutPort ?t1))
           = subst (iSubst ?t2) (freshen (iAnnot ?t2) (a_conc (inPorts' (iNodeOf ?t2) ! i)))"
-        by (rule iwf_edge_match[OF global_iwf_it[OF `c \<in> set conclusions`] `is \<in> it_paths (it' c)`[unfolded snoc]])
+        by (rule iwf_edge_match[OF iwf_it[OF `c \<in> set conclusions`] `is \<in> it_paths (it' c)`[unfolded snoc]])
       also have "iAnnot ?t2 = vidx (c, 0 # is')" by simp
       also have "subst (iSubst ?t2) (freshen (vidx (c, 0 # is')) (a_conc (inPorts' (iNodeOf ?t2) ! i))) = labelAtIn v\<^sub>2 p\<^sub>2"
         using regular_edge snoc by (simp add: labelAtIn_def edge_at_def)
@@ -666,7 +643,7 @@ proof
       by (auto simp add: all_local_vars_def fmember.rep_eq)
 
     from iwf_local_not_in_subst[OF
-        local_iwf_it[OF `c \<in> set conclusions`]
+        iwf_it[OF `c \<in> set conclusions`]
         `is'' \<in> it_paths (it' c)`
         `var \<in> all_local_vars  (iNodeOf (tree_at (it' c) is''))`
         ]
@@ -714,12 +691,12 @@ proof
 
   from `(is''''@[i']) \<in> it_paths (it' c')`
   have "i' < length (inPorts' (nodeOf (c, is)))"
-    by (auto elim!: it_paths_SnocE simp add: `is=_` `c' = _` order.strict_trans2 iwf_length_inPorts[OF global_iwf_it[OF `c \<in> set conclusions`]])
+    by (auto elim!: it_paths_SnocE simp add: `is=_` `c' = _` order.strict_trans2 iwf_length_inPorts[OF iwf_it[OF `c \<in> set conclusions`]])
 
 
   have "nodeOf (c, is) \<in> sset nodes"
     unfolding `is = _` `c' = _` nodeOf.simps
-    by (rule iNodeOf_tree_at[OF global_iwf_it[OF `c \<in> set conclusions`]  `is'''' \<in> it_paths (it' c')`[unfolded `c' = _`]])
+    by (rule iNodeOf_tree_at[OF iwf_it[OF `c \<in> set conclusions`]  `is'''' \<in> it_paths (it' c')`[unfolded `c' = _`]])
     
   
   from `var \<in> a_fresh (inPorts' (iNodeOf (tree_at (it' c') is'''')) ! i')`

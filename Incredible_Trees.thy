@@ -98,7 +98,11 @@ inductive local_fresh_check :: "('form, 'rule, 'subst) fresh_check" where
    \<rbrakk> \<Longrightarrow> local_fresh_check n i s (\<Gamma> \<turnstile> c)"
 
 abbreviation "local_iwf \<equiv> iwf local_fresh_check"
-  
+
+inductive no_fresh_check :: "('form, 'rule, 'subst) fresh_check" where
+  "no_fresh_check n i s (\<Gamma> \<turnstile> c)"
+
+abbreviation "plain_iwf \<equiv> iwf no_fresh_check"
   
 
 inductive it_pathsP :: "('form,'rule,'subst,'var) itree \<Rightarrow> nat list \<Rightarrow> bool"  where
@@ -544,7 +548,7 @@ lemma iAnnot_globalize:
 
 lemma iwf_globalize:
   assumes "local_iwf t (\<Gamma> \<turnstile> c)"
-  shows "local_iwf (globalize is f t) (renameLCs f |`| \<Gamma> \<turnstile> renameLCs f c)"
+  shows "plain_iwf (globalize is f t) (renameLCs f |`| \<Gamma> \<turnstile> renameLCs f c)"
 using assms
 proof (induction t "\<Gamma> \<turnstile> c" arbitrary: "is" f \<Gamma> c rule: iwf.induct)
   case (iwf n p s i \<Gamma> ants c "is" f)
@@ -577,7 +581,7 @@ proof (induction t "\<Gamma> \<turnstile> c" arbitrary: "is" f \<Gamma> c rule: 
     have subset_conc: "lconsts (a_conc (inPorts' n ! i')) \<subseteq> ?V" sorry
 
     from List.list_all2_nthD[OF `list_all2 _ _ _` `i' < length (inPorts' n)`,simplified]
-    have "local_iwf ?t
+    have "plain_iwf ?t
            (renameLCs ?f' |`| ((\<lambda>h. subst s (freshen i (labelsOut n h))) |`| hyps_for n ?ip |\<union>|  \<Gamma>) \<turnstile>
             renameLCs ?f' (subst s (freshen i (a_conc ?ip))))"
          by simp
@@ -616,19 +620,17 @@ proof (induction t "\<Gamma> \<turnstile> c" arbitrary: "is" f \<Gamma> c rule: 
         apply (auto dest: subsetD[OF subset_conc])
         done
     finally
-    have "local_iwf ?t (?\<Gamma>' |\<union>| renameLCs f |`| \<Gamma> \<turnstile> ?c')".
+    have "plain_iwf ?t (?\<Gamma>' |\<union>| renameLCs f |`| \<Gamma> \<turnstile> ?c')".
   }
   with list_all2_lengthD[OF `list_all2 _ _ _`]
   have "list_all2
-     (\<lambda>ip t. local_iwf t ((\<lambda>h. subst (subst_renameLCs f s)
+     (\<lambda>ip t. plain_iwf t ((\<lambda>h. subst (subst_renameLCs f s)
        (freshen (isidx is) (labelsOut n h))) |`| hyps_for n ip |\<union>|  renameLCs f |`| \<Gamma> \<turnstile> subst (subst_renameLCs f s) (freshen (isidx is) (labelsIn n ip))))
      (inPorts' n)
      (mapWithIndex (\<lambda> i' t. globalize (is@[i']) (rerename (a_fresh (inPorts' n ! i')) i (isidx is) f) t) ants)"
    by (auto simp add: list_all2_conv_all_nth)
   moreover
-  from `local_fresh_check n i s (\<Gamma> \<turnstile> c)`
-  have "local_fresh_check n (isidx is) (subst_renameLCs f s) (renameLCs f |`| \<Gamma> \<turnstile> renameLCs f c)"
-    sorry
+  have "no_fresh_check n (isidx is) (subst_renameLCs f s) (renameLCs f |`| \<Gamma> \<turnstile> renameLCs f c)"..
   moreover
   from  `Reg p |\<in>| outPorts n`
   have "lconsts p = {}" sorry
@@ -652,7 +654,7 @@ next
   have "renameLCs f c = subst (subst_renameLCs f s)  (freshen (isidx is) anyP)"
     by (metis freshen_closed lconsts_anyP rename_closed rename_subst)
   ultimately 
-  show "local_iwf (globalize is f (HNode i s)) (renameLCs f |`| \<Gamma> \<turnstile> renameLCs f c)" 
+  show "plain_iwf (globalize is f (HNode i s)) (renameLCs f |`| \<Gamma> \<turnstile> renameLCs f c)" 
     unfolding globalize.simps Let_def 
     by (rule iwf.intros(2))
 qed
@@ -715,11 +717,11 @@ lemma iwf_globalize':
   assumes "local_iwf t ent"
   assumes "\<And> x. x |\<in>| fst ent \<Longrightarrow> closed x"
   assumes "closed (snd ent)"
-  shows "local_iwf (globalize is (freshenLC v_away) t) ent"
+  shows "plain_iwf (globalize is (freshenLC v_away) t) ent"
 using assms
 proof(induction ent rule: prod.induct)
   case (Pair \<Gamma> c)
-  have "local_iwf (globalize is (freshenLC v_away) t) (renameLCs (freshenLC v_away) |`| \<Gamma> \<turnstile> renameLCs (freshenLC v_away) c)"
+  have "plain_iwf (globalize is (freshenLC v_away) t) (renameLCs (freshenLC v_away) |`| \<Gamma> \<turnstile> renameLCs (freshenLC v_away) c)"
     by (rule iwf_globalize[OF Pair(1)])
   also
   from Pair(3) have "closed c" by simp
@@ -730,18 +732,6 @@ proof(induction ent rule: prod.induct)
     by (auto simp add: closed_no_lconsts rename_closed fmember.rep_eq image_iff)
   finally show ?case.
 qed
-
-text {*
-Like local_iwf, but every name occuring in a substitution has
-is either in the conclusion of the rule, or created by this rule.
-*}
-
-inductive global_fresh_check :: "('form, 'rule, 'subst) fresh_check" where
-  "subst_lconsts s \<subseteq> fv_entailment (\<Gamma> \<turnstile> c) \<union> range (freshenLC i) \<Longrightarrow> global_fresh_check n i s (\<Gamma> \<turnstile> c)"
-
-abbreviation "global_iwf \<equiv> iwf global_fresh_check"
-
-
 
 end   
 
