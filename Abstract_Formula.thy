@@ -111,7 +111,7 @@ locale Abstract_Rules =
   and rules :: "'rule stream"
   assumes no_empty_conclusions: "\<forall>xs\<in>sset rules. consequent xs \<noteq> []"
 
-  assumes no_local_consts_in_consequences: "\<forall>xs\<in>sset rules. lconsts ` set (consequent xs) = {}"
+  assumes no_local_consts_in_consequences: "\<forall>xs\<in>sset rules. \<Union>(lconsts ` (set (consequent xs))) = {}"
   assumes no_multiple_local_consts:
     "\<And> r i i .  r \<in> sset rules \<Longrightarrow>
                  i < length (antecedent r) \<Longrightarrow>
