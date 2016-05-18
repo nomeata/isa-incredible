@@ -2,6 +2,11 @@ theory Build_Incredible_Tree
 imports Incredible_Trees Natural_Deduction
 begin
 
+text \<open>
+This theory constructs an incredible tree (with freshness checked only locally) from a natural
+deduction tree.
+\<close>
+
 lemma image_eq_to_f:
   assumes  "f1 ` S1 = f2 ` S2"
   obtains f where "\<And> x. x \<in> S2 \<Longrightarrow> f x \<in> S1 \<and> f1 (f x) = f2 x"
@@ -19,7 +24,7 @@ lemma fimage_eq_to_f:
 using assms apply transfer using image_eq_to_f by metis
 end
 
-context  Abstract_Task
+context Abstract_Task
 begin
 
 lemma build_local_iwf:
@@ -144,7 +149,5 @@ lemma iwf_to_it:
   assumes "tfinite t" and "wf t"
   shows "local_iwf (to_it t) (fst (root t))"
 unfolding to_it_def using build_local_iwf[OF assms] by (rule someI2_ex)
-
 end
-
 end

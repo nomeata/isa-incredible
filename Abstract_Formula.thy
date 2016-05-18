@@ -5,15 +5,35 @@ imports
   "~~/src/HOL/Library/Stream"
   Indexed_FSet
 begin
+
+text \<open>
+The following locale describes an abstract interface for a set of formulas, without fixing the
+concret shape, or set of variables.
+
+The variables mentioned in this locale are only the @{emph \<open>locally fixed constants\<close>} occuring in
+formulas, e.g.\@ in the introduction rule for the universal quantifier. Normal variables are not
+something we care about at this point; they are handled completely abstractly by the abstract notion
+of a substitution.
+\<close>
+
 locale Abstract_Formulas =
+  -- \<open>Variables can be renamed injectively\<close>
   fixes freshenLC :: "nat \<Rightarrow> 'var \<Rightarrow> 'var"
+  -- \<open>A variable-changing function can be mapped over a formula\<close>
   fixes renameLCs :: "('var \<Rightarrow> 'var) \<Rightarrow> ('form \<Rightarrow> 'form)"
+  -- \<open>The set of variables occurring in a formula\<close>
   fixes lconsts :: "'form \<Rightarrow> 'var set"
+  -- \<open>A closed formula has no variables, and substitions do not affect it.\<close>
   fixes closed :: "'form \<Rightarrow> bool"
+  -- \<open>A substitution can be applied to a formula.\<close>
   fixes subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form"
+  -- \<open>The set of variables occurring (in the image) of a substitution.\<close>
   fixes subst_lconsts :: "'subst \<Rightarrow> 'var set"
+  -- \<open>A variable-changing function can be mapped over a substitution\<close>
   fixes subst_renameLCs :: "('var \<Rightarrow> 'var) \<Rightarrow> ('subst \<Rightarrow> 'subst)"
+  -- \<open>A most generic formula, can be substitutied to anything.\<close>
   fixes anyP :: "'form"
+
   assumes freshenLC_eq_iff[simp]: "freshenLC a v = freshenLC a' v' \<longleftrightarrow> a = a' \<and> v = v'"
   assumes lconsts_renameLCs: "lconsts (renameLCs p f) = p ` lconsts f"
   assumes rename_closed: "lconsts f = {} \<Longrightarrow> renameLCs p f = f"
@@ -68,12 +88,6 @@ begin
   lemma rerename_freshen[simp]: "x \<in> V \<Longrightarrow> rerename  V i (isidx is) f (freshenLC i x) = freshenLC (isidx is) x"
     unfolding rerename_def by simp
 
-  (*
-  lemma range_rerename_eq: "range (rerename V from to f) = freshenLC to ` V \<union> (range f - freshenLC from ` V)"
-    apply (auto simp add: rerename_def split: if_splits)
-    sledgehammer
-  *)
-  
   lemma range_rerename: "range (rerename V  from to f) \<subseteq> freshenLC to ` V \<union> range f"
     by (auto simp add: rerename_def split: if_splits)
 
@@ -89,92 +103,4 @@ begin
       "freshenLC from ` V \<inter> subst_lconsts s  = {}  \<Longrightarrow> subst_renameLCs (rerename V from to f) s = subst_renameLCs f s"
       by (intro subst_renameLCs_cong rerename_noop) auto
 end
-
-datatype ('form, 'var) antecedent =
-  Antecedent (a_hyps: "'form fset") (a_conc: "'form") (a_fresh: "'var set")
-
-abbreviation plain_ant :: "'form \<Rightarrow> ('form, 'var) antecedent"
-  where "plain_ant f \<equiv> Antecedent {||} f {}"
-
-locale Abstract_Rules =
-  Abstract_Formulas freshenLC renameLCs lconsts closed subst subst_lconsts subst_renameLCs anyP
-  for freshenLC :: "nat \<Rightarrow> 'var \<Rightarrow> 'var"
-  and renameLCs  :: "('var \<Rightarrow> 'var) \<Rightarrow> ('form \<Rightarrow> 'form)"
-  and lconsts :: "'form \<Rightarrow> 'var set"
-  and closed :: "'form \<Rightarrow> bool"
-  and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" 
-  and subst_lconsts :: "'subst \<Rightarrow> 'var set" 
-  and subst_renameLCs :: "('var \<Rightarrow> 'var) \<Rightarrow> ('subst \<Rightarrow> 'subst)"
-  and anyP :: "'form" +
-  fixes antecedent :: "'rule \<Rightarrow> ('form, 'var) antecedent list"
-  fixes consequent :: "'rule \<Rightarrow> 'form list"
-  and rules :: "'rule stream"
-  assumes no_empty_conclusions: "\<forall>xs\<in>sset rules. consequent xs \<noteq> []"
-
-  assumes no_local_consts_in_consequences: "\<forall>xs\<in>sset rules. \<Union>(lconsts ` (set (consequent xs))) = {}"
-  assumes no_multiple_local_consts:
-    "\<And> r i i .  r \<in> sset rules \<Longrightarrow>
-                 i < length (antecedent r) \<Longrightarrow>
-                 i' < length (antecedent r) \<Longrightarrow>
-                 a_fresh (antecedent r ! i) \<inter> a_fresh (antecedent r ! i') = {} \<or> i = i'"
-  assumes all_local_consts_listed:
-    "\<And> r p. r \<in> sset rules \<Longrightarrow> p \<in> set (antecent r) \<Longrightarrow>
-        lconsts (a_conc p) \<union> (\<Union>(lconsts ` fset (a_hyps p))) \<subseteq> a_fresh p "
-begin
-  definition f_antecedent :: "'rule \<Rightarrow> ('form, 'var) antecedent fset"
-    where "f_antecedent r = fset_from_list (antecedent r)"
-  definition "f_consequent r = fset_from_list (consequent r)"
-end
-
-locale Abstract_Task =
-  Abstract_Rules freshenLC renameLCs lconsts closed subst subst_lconsts subst_renameLCs anyP  antecedent consequent rules
-  for freshenLC :: "nat \<Rightarrow> 'var \<Rightarrow> 'var"
-    and renameLCs  :: "('var \<Rightarrow> 'var) \<Rightarrow> ('form \<Rightarrow> 'form)"
-    and lconsts :: "'form \<Rightarrow> 'var set"
-    and closed :: "'form \<Rightarrow> bool"
-    and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" 
-    and subst_lconsts :: "'subst \<Rightarrow> 'var set" 
-    and subst_renameLCs :: "('var \<Rightarrow> 'var) \<Rightarrow> ('subst \<Rightarrow> 'subst)"
-    and anyP :: "'form"
-    and antecedent :: "'rule \<Rightarrow> ('form, 'var) antecedent list"
-    and consequent :: "'rule \<Rightarrow> 'form list" 
-    and rules :: "'rule stream" +
-  fixes assumptions :: "'form list"
-  fixes conclusions :: "'form list"
-  assumes assumptions_closed: "\<And> a. a \<in> set assumptions \<Longrightarrow> closed a"
-  assumes conclusions_closed: "\<And> c. c \<in> set conclusions \<Longrightarrow> closed c"
-begin
-  definition ass_forms where "ass_forms = fset_from_list assumptions"
-  definition conc_forms where "conc_forms = fset_from_list  conclusions"
-
-  lemma mem_ass_forms[simp]: "a |\<in>| ass_forms \<longleftrightarrow> a \<in> set assumptions"
-    by (auto simp add: ass_forms_def)
-  
-  lemma mem_conc_forms[simp]: "a |\<in>| conc_forms \<longleftrightarrow> a \<in> set conclusions"
-    by (auto simp add: conc_forms_def)
-
-  lemma subst_freshen_assumptions[simp]:
-    assumes "pf \<in> set assumptions"
-    shows "subst s (freshen a pf) = pf "
-      using assms assumptions_closed 
-      by (simp add: closed_no_lconsts freshen_def rename_closed subst_closed)
-
-  lemma subst_freshen_conclusions[simp]:
-    assumes "pf \<in> set conclusions"
-    shows "subst s (freshen a pf) = pf "
-      using assms conclusions_closed 
-      by (simp add: closed_no_lconsts freshen_def rename_closed subst_closed)
-
-  lemma subst_freshen_in_ass_formsI:
-    assumes "pf \<in> set assumptions"
-    shows "subst s (freshen a pf) |\<in>| ass_forms"
-      using assms by simp
-
-  lemma subst_freshen_in_conc_formsI:
-    assumes "pf \<in> set conclusions"
-    shows "subst s (freshen a pf) |\<in>| conc_forms"
-      using assms by simp
-end
-
-
 end

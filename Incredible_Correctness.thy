@@ -1,8 +1,13 @@
 theory Incredible_Correctness
 imports
-  Incredible_Deduction
+  Abstract_Rules_To_Incredible
   Natural_Deduction
 begin
+
+text \<open>
+In this theory, we prove that if we have a graph that proves a given abstract task (which is
+represented as the context @{term Tasked_Proof_Graph}, then we can prove @{term solved}.
+\<close>
 
 lemma ffUnion_fempty[simp]: "ffUnion fempty = fempty"
   by (auto simp add: fmember.rep_eq ffUnion.rep_eq)
@@ -14,80 +19,77 @@ lemma ffUnion_finsert[simp]: "ffUnion (finsert x S) = x |\<union>| ffUnion S"
 context Tasked_Proof_Graph
 begin
 
-  definition adjacentTo :: "'vertex \<Rightarrow> ('form, 'var) in_port \<Rightarrow> ('vertex \<times> ('form, 'var) out_port)" where
-   "adjacentTo v p = (SOME ps. (ps, (v,p)) \<in> edges)" 
-  
-  fun isReg where
-    "isReg v p = (case p of Hyp h c \<Rightarrow> False | Reg  c \<Rightarrow>
-        (case nodeOf v of
-          Conclusion a \<Rightarrow> False
-        | Assumption a \<Rightarrow> False
-        | Rule r \<Rightarrow> True
-        | Helper \<Rightarrow> True
-        ))"
+definition adjacentTo :: "'vertex \<Rightarrow> ('form, 'var) in_port \<Rightarrow> ('vertex \<times> ('form, 'var) out_port)" where
+ "adjacentTo v p = (SOME ps. (ps, (v,p)) \<in> edges)" 
 
-  fun toNatRule  where
-    "toNatRule v p = (case p of Hyp h c \<Rightarrow> Axiom | Reg  c \<Rightarrow>
-        (case nodeOf v of
-          Conclusion a \<Rightarrow> Axiom (* a lie *)
-        | Assumption a \<Rightarrow> Axiom
-        | Rule r \<Rightarrow> NatRule (r,c)
-        | Helper \<Rightarrow> Cut
-        ))"
+fun isReg where
+  "isReg v p = (case p of Hyp h c \<Rightarrow> False | Reg  c \<Rightarrow>
+      (case nodeOf v of
+        Conclusion a \<Rightarrow> False
+      | Assumption a \<Rightarrow> False
+      | Rule r \<Rightarrow> True
+      | Helper \<Rightarrow> True
+      ))"
+
+fun toNatRule  where
+  "toNatRule v p = (case p of Hyp h c \<Rightarrow> Axiom | Reg  c \<Rightarrow>
+      (case nodeOf v of
+        Conclusion a \<Rightarrow> Axiom (* a lie *)
+      | Assumption a \<Rightarrow> Axiom
+      | Rule r \<Rightarrow> NatRule (r,c)
+      | Helper \<Rightarrow> Cut
+      ))"
 
 
-  inductive_set global_assms' :: "'var itself \<Rightarrow> 'form set" for i  where
-    "v |\<in>| vertices \<Longrightarrow> nodeOf v = Assumption p \<Longrightarrow> labelAtOut v (Reg p) \<in> global_assms' i"
+inductive_set global_assms' :: "'var itself \<Rightarrow> 'form set" for i  where
+  "v |\<in>| vertices \<Longrightarrow> nodeOf v = Assumption p \<Longrightarrow> labelAtOut v (Reg p) \<in> global_assms' i"
 
-  lemma finite_global_assms': "finite (global_assms' i)"
-  proof-
-    have "finite (fset vertices)" by (rule finite_fset)
-    moreover
-    have "global_assms' i \<subseteq> (\<lambda> v. case nodeOf v of Assumption p \<Rightarrow>  labelAtOut v (Reg p)) ` fset vertices"
-      by (force simp add: global_assms'.simps fmember.rep_eq image_iff )
-    ultimately
-    show ?thesis by (rule finite_surj)
-  qed
+lemma finite_global_assms': "finite (global_assms' i)"
+proof-
+  have "finite (fset vertices)" by (rule finite_fset)
+  moreover
+  have "global_assms' i \<subseteq> (\<lambda> v. case nodeOf v of Assumption p \<Rightarrow>  labelAtOut v (Reg p)) ` fset vertices"
+    by (force simp add: global_assms'.simps fmember.rep_eq image_iff )
+  ultimately
+  show ?thesis by (rule finite_surj)
+qed
 
-  context includes fset.lifting
-  begin
+context includes fset.lifting
+begin
   lift_definition global_assms :: "'var itself \<Rightarrow> 'form fset" is global_assms' by (rule finite_global_assms')
   lemmas global_assmsI = global_assms'.intros[Transfer.transferred]
   lemmas global_assms_simps = global_assms'.simps[Transfer.transferred]
-  end
+end
 
-  fun extra_assms :: "('vertex \<times> ('form, 'var) in_port) \<Rightarrow> 'form fset" where
-    "extra_assms (v, p) = (\<lambda> p. labelAtOut v p) |`| hyps_for (nodeOf v) p"
+fun extra_assms :: "('vertex \<times> ('form, 'var) in_port) \<Rightarrow> 'form fset" where
+  "extra_assms (v, p) = (\<lambda> p. labelAtOut v p) |`| hyps_for (nodeOf v) p"
 
-  fun hyps_along :: "('vertex, 'form, 'var) edge' list \<Rightarrow> 'form fset" where
-    "hyps_along pth = ffUnion (extra_assms |`| snd |`| fset_from_list pth) |\<union>| global_assms TYPE('var)"
+fun hyps_along :: "('vertex, 'form, 'var) edge' list \<Rightarrow> 'form fset" where
+  "hyps_along pth = ffUnion (extra_assms |`| snd |`| fset_from_list pth) |\<union>| global_assms TYPE('var)"
 
-  lemma hyps_alongE[consumes 1, case_names Hyp Assumption]:
-    assumes "f |\<in>| hyps_along pth"
-    obtains v p h where "(v,p) \<in> snd ` set pth" and "f = labelAtOut v h " and "h |\<in>| hyps_for (nodeOf v) p"
-    | v pf  where "v |\<in>| vertices" and "nodeOf v = Assumption pf" "f = labelAtOut v (Reg pf)" 
-    using assms
-    apply (auto simp add: fmember.rep_eq ffUnion.rep_eq  global_assms_simps[unfolded fmember.rep_eq])
-    apply (metis image_iff snd_conv)
-    done
+lemma hyps_alongE[consumes 1, case_names Hyp Assumption]:
+  assumes "f |\<in>| hyps_along pth"
+  obtains v p h where "(v,p) \<in> snd ` set pth" and "f = labelAtOut v h " and "h |\<in>| hyps_for (nodeOf v) p"
+  | v pf  where "v |\<in>| vertices" and "nodeOf v = Assumption pf" "f = labelAtOut v (Reg pf)" 
+  using assms
+  apply (auto simp add: fmember.rep_eq ffUnion.rep_eq  global_assms_simps[unfolded fmember.rep_eq])
+  apply (metis image_iff snd_conv)
+  done
 
-  primcorec tree :: "'vertex \<Rightarrow> ('form, 'var) in_port \<Rightarrow> ('vertex, 'form, 'var) edge' list \<Rightarrow>  (('form entailment), ('rule \<times> 'form) NatRule) dtree" where
-   "root (tree v p pth) =
-      ((hyps_along ((adjacentTo v p,(v,p))#pth) \<turnstile> labelAtIn v p),
-      (case adjacentTo v p of (v', p') \<Rightarrow> toNatRule v' p'
-      ))"
-   | "cont (tree v p pth) =
-      (case adjacentTo v p of (v', p') \<Rightarrow>
-      (if isReg v' p' then ((\<lambda> p''. tree v' p'' ((adjacentTo v p,(v,p))#pth)) |`| inPorts (nodeOf v')) else {||}
-      ))"
+text \<open>Here we build the natural deduction tree, by walking the graph.\<close>    
+
+primcorec tree :: "'vertex \<Rightarrow> ('form, 'var) in_port \<Rightarrow> ('vertex, 'form, 'var) edge' list \<Rightarrow>  (('form entailment), ('rule \<times> 'form) NatRule) dtree" where
+ "root (tree v p pth) =
+    ((hyps_along ((adjacentTo v p,(v,p))#pth) \<turnstile> labelAtIn v p),
+    (case adjacentTo v p of (v', p') \<Rightarrow> toNatRule v' p'
+    ))"
+ | "cont (tree v p pth) =
+    (case adjacentTo v p of (v', p') \<Rightarrow>
+    (if isReg v' p' then ((\<lambda> p''. tree v' p'' ((adjacentTo v p,(v,p))#pth)) |`| inPorts (nodeOf v')) else {||}
+    ))"
 
 
 lemma fst_root_tree[simp]: "fst (root (tree v p pth)) = (hyps_along ((adjacentTo v p,(v,p))#pth) \<turnstile> labelAtIn v p)" by simp
-
-(*
-lemma fst_root_tree_comp[simp]: "fst \<circ> root \<circ> tree \<Gamma> v = (\<lambda> p. (hyps_along pth \<turnstile> labelAtIn v p))" by auto
-*)
-
 
 lemma out_port_cases[consumes 1, case_names Assumption Hyp Rule Helper]:
   assumes "p |\<in>| outPorts n"
@@ -104,6 +106,8 @@ lemma hyps_for_fimage: "hyps_for (Rule r) x = (if x |\<in>| f_antecedent r then 
   apply (case_tac p')
   apply (auto simp add:  split: if_splits out_port.splits)
   done
+
+text \<open>Now we prove that the thus produced tree is well-formed.\<close>
 
 theorem wf_tree:
   assumes "valid_in_port (v,p)"
@@ -487,6 +491,9 @@ lemma forbidden_path_prefix_is_hyp_free:
   done
 
 
+text \<open>And now we prove that the tree is finite, which requires the above notion of a
+@{term forbidden_path}, i.e.\@ an infinite path.\<close>
+
 theorem finite_tree:
   assumes "valid_in_port (v,p)"
   assumes "terminal_vertex v"
@@ -509,7 +516,9 @@ proof(rule ccontr)
   thus False by simp
 qed
 
-lemma solved
+text \<open>The main result of this theory.\<close>
+
+theorem solved
 unfolding solved_def
 proof(intro ballI allI conjI impI)
   fix c

@@ -3,13 +3,13 @@ imports
   Main 
   "~~/src/HOL/Library/FSet"
   "~~/src/HOL/Library/Stream"
-  Abstract_Formula
+  Incredible_Signatures
 begin
 
-locale Port_Graph_Signature =
-  fixes nodes :: "'node stream"
-  fixes inPorts :: "'node \<Rightarrow> 'inPort fset"
-  fixes outPorts :: "'node \<Rightarrow> 'outPort fset"
+text \<open>This theory contains the definition for actual proof graphs, and their various possible
+properties.\<close>
+
+text \<open>The following locale first defines graphs, without edges.\<close>
 
 locale Vertex_Graph = 
   Port_Graph_Signature nodes inPorts outPorts
@@ -26,8 +26,9 @@ begin
     "terminal_node n \<longleftrightarrow> outPorts n = {||}"
   fun terminal_vertex where
     "terminal_vertex v \<longleftrightarrow> v |\<in>| vertices \<and> terminal_node (nodeOf v)"
-
 end
+
+text \<open>And now we add the edges. This allows us to define paths and scopes.\<close>
 
 type_synonym ('v, 'outPort, 'inPort) edge = "(('v \<times> 'outPort) \<times> ('v \<times> 'inPort))"
 
@@ -126,9 +127,10 @@ begin
       show "ps \<notin> snd ` set pth1" by fact
       show "snd e = ps" by fact
     qed
-  qed
-  
+  qed  
 end
+
+text \<open>This adds well-formedness conditions to the edges and vertices.\<close>
 
 locale Port_Graph = Pre_Port_Graph +
   assumes valid_nodes: "nodeOf ` fset vertices  \<subseteq> sset nodes"
@@ -146,6 +148,8 @@ begin
     apply (metis valid_out_port.elims(2) edge_begin.simps notin_fset case_prodD valid_edges)
     done
 end
+
+text \<open>A pruned graph is one where every node has a path to a terminal node (which will be the conclusions).\<close>
 
 locale Pruned_Port_Graph = Port_Graph +
   assumes pruned: "\<And>v.  v |\<in>| vertices \<Longrightarrow> (\<exists>pth v'. path v v' pth \<and> terminal_vertex v')"
@@ -169,9 +173,9 @@ begin
     show False by auto
   qed
 
+  text \<open>This lemma can be found in \cite{incredible}, but it is otherwise inconsequential.\<close>
   lemma scopes_nest:
     fixes ps1 ps2
-    (* assumes "valid_in_port ps1" and "valid_in_port ps2" not needed *)
     shows "scope ps1 \<subseteq> scope ps2 \<or> scope ps2 \<subseteq> scope ps1 \<or> scope ps1 \<inter> scope ps2 = {}"
   proof(cases "ps1 = ps2")
     assume "ps1 \<noteq> ps2"
@@ -250,37 +254,13 @@ begin
   qed simp
 end
 
-
-locale Port_Graph_Signature_Scoped =
-  Port_Graph_Signature +
-  fixes hyps :: "'node \<Rightarrow> 'outPort \<rightharpoonup> 'inPort"
-  assumes hyps_correct: "hyps n p1 = Some p2 \<Longrightarrow> p1 |\<in>| outPorts n \<and> p2 |\<in>| inPorts n"
-begin
-  inductive_set hyps_for' :: "'node \<Rightarrow> 'inPort \<Rightarrow> 'outPort set" for n p
-    where "hyps n h = Some p \<Longrightarrow> h \<in> hyps_for' n p"
-
-  lemma hyps_for'_subset: "hyps_for' n p \<subseteq> fset (outPorts n)"
-    using hyps_correct by (meson hyps_for'.cases notin_fset subsetI)
- 
-  context includes fset.lifting
-  begin
-  lift_definition hyps_for  :: "'node \<Rightarrow> 'inPort \<Rightarrow> 'outPort fset" is hyps_for'
-    by (meson finite_fset hyps_for'_subset rev_finite_subset)
-  lemma hyps_for_simp[simp]: "h |\<in>| hyps_for n p \<longleftrightarrow> hyps n h = Some p"
-    by transfer (simp add: hyps_for'.simps)
-  lemma hyps_for_simp'[simp]: "h \<in> fset (hyps_for n p) \<longleftrightarrow> hyps n h = Some p"
-    by transfer (simp add: hyps_for'.simps)
-  lemma hyps_for_collect: "fset (hyps_for n p) = {h . hyps n h = Some p}"
-    by auto
-  end
-  lemma hyps_for_subset: "hyps_for n p |\<subseteq>| outPorts n"
-    using hyps_for'_subset
-    by (fastforce simp add: fmember.rep_eq hyps_for.rep_eq simp del: hyps_for_simp hyps_for_simp')
- 
-end
+text \<open>A well-scoped graph is one where a port marked to be a local hypothesis is only connected to
+the corresponding input port, either directly or via a path. It must not be, however, that there is
+a a path from such a hypothesis to a terminal node that does not pass by the dedicated input port;
+this is expressed via scopes.
+\<close>
 
 locale Scoped_Graph = Port_Graph + Port_Graph_Signature_Scoped
-
 locale Well_Scoped_Graph = Scoped_Graph +
   assumes well_scoped: "((v\<^sub>1,p\<^sub>1),(v\<^sub>2,p\<^sub>2)) \<in> edges \<Longrightarrow> hyps (nodeOf v\<^sub>1) p\<^sub>1 = Some p' \<Longrightarrow> (v\<^sub>2,p\<^sub>2) = (v\<^sub>1,p') \<or> v\<^sub>2 \<in> scope (v\<^sub>1,p')"
 
@@ -326,8 +306,10 @@ lemma terminal_pathI:
   shows "terminal_path v v' pth"
 using assms
 by induction (auto intro: terminal_path.intros)
-
 end
+
+text \<open>An acyclic path is one where there are no non-trivial cyclic paths (disregarding
+edges that are local hypotheses -- these are naturally and benignly cyclic.\<close>
 
 locale Acyclic_Graph = Scoped_Graph +
   assumes hyps_free_acyclic: "path v v pth \<Longrightarrow> hyps_free pth \<Longrightarrow> pth = []"
@@ -431,15 +413,18 @@ qed
 
 end
 
+text \<open>A saturated graph is one where every input port is incident to an edge.\<close>
+
 locale Saturated_Graph = Port_Graph +
   assumes saturated: "valid_in_port (v,p) \<Longrightarrow> \<exists> e \<in> edges . snd e = (v,p)"
 
+text \<open>These four conditions make up an well-shaped graphs.\<close>
+
 locale Well_Shaped_Graph =  Well_Scoped_Graph + Acyclic_Graph + Saturated_Graph + Pruned_Port_Graph
 
-locale Labeled_Signature = 
-  Port_Graph_Signature_Scoped +
-  fixes labelsIn :: "'node \<Rightarrow> 'inPort \<Rightarrow> 'form" 
-  fixes labelsOut :: "'node \<Rightarrow> 'outPort \<Rightarrow> 'form" 
+text \<open>Next we demand an instantiation. This consists of a unique natural number per vertex,
+in order to rename the local constants apart, and furthermore a substitution per block
+which instantiates the schematic formulas given in @{term Labeled_Signature}.\<close>
 
 locale Instantiation =
   Vertex_Graph nodes _ _ vertices _ +
@@ -464,27 +449,17 @@ begin
     "labelAtOut v p = subst (inst v) (freshen (vidx v) (labelsOut (nodeOf v) p))"
 end
 
+text \<open>A solution is an instantiation where on every edge, both incident ports are labeld with
+the same formula.\<close>
+
 locale Solution =
   Instantiation _ _ _ _ _ edges for edges :: "(('vertex \<times> 'outPort) \<times> 'vertex \<times> 'inPort) set" +
   assumes solved: "((v\<^sub>1,p\<^sub>1),(v\<^sub>2,p\<^sub>2)) \<in> edges \<Longrightarrow> labelAtOut v\<^sub>1 p\<^sub>1 = labelAtIn v\<^sub>2 p\<^sub>2"
 
 locale Proof_Graph =  Well_Shaped_Graph + Solution
 
-
-locale Port_Graph_Signature_Scoped_Vars =
-  Port_Graph_Signature nodes inPorts outPorts +
-  Abstract_Formulas freshenLC renameLCs lconsts closed subst subst_lconsts subst_renameLCs anyP
-  for nodes :: "'node stream" and inPorts :: "'node \<Rightarrow> 'inPort fset"  and outPorts :: "'node \<Rightarrow> 'outPort fset"
-  and  freshenLC :: "nat \<Rightarrow> 'var \<Rightarrow> 'var" 
-    and renameLCs :: "('var \<Rightarrow> 'var) \<Rightarrow> 'form \<Rightarrow> 'form" 
-    and lconsts :: "'form \<Rightarrow> 'var set" 
-    and closed :: "'form \<Rightarrow> bool"
-    and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" 
-    and subst_lconsts :: "'subst \<Rightarrow> 'var set" 
-    and subst_renameLCs :: "('var \<Rightarrow> 'var) \<Rightarrow> ('subst \<Rightarrow> 'subst)"
-    and anyP :: "'form" +
-
-  fixes local_vars :: "'node \<Rightarrow> 'inPort \<Rightarrow> 'var set"
+text \<open>If we have locally scoped constants, we demand that only blocks in the scope of the 
+corresponding input port may mention such a locally scoped variable in its substitution.\<close>
 
 locale Well_Scoped_Instantiation =
    Pre_Port_Graph  nodes inPorts outPorts vertices nodeOf edges +
@@ -520,6 +495,8 @@ begin
   lemma out_of_scope: "valid_in_port (v,p) \<Longrightarrow> v' |\<in>| vertices \<Longrightarrow> v' \<notin> scope (v,p) \<Longrightarrow> freshenLC (vidx v) ` local_vars (nodeOf v) p \<inter> subst_lconsts (inst v') = {}"
     using well_scoped_inst by auto
 end
+
+text \<open>The following locale assembles all these conditions.\<close>
   
 locale Scoped_Proof_Graph =
   Instantiation  inPorts outPorts nodeOf hyps nodes edges  vertices labelsIn labelsOut freshenLC renameLCs lconsts closed subst subst_lconsts subst_renameLCs anyP vidx inst +
@@ -546,117 +523,5 @@ locale Scoped_Proof_Graph =
     and inst :: "'vertex \<Rightarrow> 'subst" 
     and edges :: "('vertex, 'outPort, 'inPort) edge  set" 
     and local_vars :: "'node \<Rightarrow> 'inPort \<Rightarrow> 'var set"
-
-
-datatype ('form, 'rule) graph_node = Assumption 'form | Conclusion 'form | Rule 'rule | Helper
-
-type_synonym ('form, 'var) in_port = "('form, 'var) antecedent"
-type_synonym 'form reg_out_port = "'form"
-type_synonym 'form hyp = "'form"
-datatype ('form, 'var) out_port = Reg "'form reg_out_port" | Hyp "'form hyp" "('form, 'var) in_port"
-type_synonym ('v, 'form, 'var) edge' = "(('v \<times> ('form, 'var) out_port) \<times> ('v \<times> ('form, 'var) in_port))"
-
-
-context Abstract_Task
-begin
-  definition nodes :: "('form, 'rule) graph_node stream" where
-    "nodes = Helper ## shift (map Assumption assumptions) (shift (map Conclusion conclusions) (smap Rule rules))"
-
-  lemma Helper_in_nodes[simp]:
-    "Helper \<in> sset nodes" by (simp add: nodes_def)
-  lemma Assumption_in_nodes[simp]:
-    "Assumption a \<in> sset nodes \<longleftrightarrow> a \<in> set assumptions" by (auto simp add: nodes_def stream.set_map)
-  lemma Conclusion_in_nodes[simp]:
-    "Conclusion c \<in> sset nodes \<longleftrightarrow> c \<in> set conclusions" by (auto simp add: nodes_def stream.set_map)
-  lemma Rule_in_nodes[simp]:
-    "Rule r \<in> sset nodes \<longleftrightarrow> r \<in> sset rules" by (auto simp add: nodes_def stream.set_map)
-
-  fun inPorts' :: "('form, 'rule) graph_node \<Rightarrow> ('form, 'var) in_port list"  where
-    "inPorts' (Rule r) = antecedent r"
-   |"inPorts' (Assumption r) = []"
-   |"inPorts' (Conclusion r) = [ plain_ant r ]"
-   |"inPorts' Helper  = [ plain_ant anyP ]"
-
-  fun inPorts :: "('form, 'rule) graph_node \<Rightarrow> ('form, 'var) in_port fset"  where
-    "inPorts (Rule r) = f_antecedent r"
-   |"inPorts (Assumption r) = {||}"
-   |"inPorts (Conclusion r) = {| plain_ant r |}"
-   |"inPorts Helper  = {| plain_ant anyP |}"
-
-  lemma inPorts_fset_of:
-    "inPorts n = fset_from_list (inPorts' n)"
-    by (cases n rule: inPorts.cases) (auto simp: fmember.rep_eq f_antecedent_def)
-
-  definition outPortsRule where
-    "outPortsRule r = ffUnion ((\<lambda> a. (\<lambda> h. Hyp h a) |`| a_hyps a) |`| f_antecedent r) |\<union>| Reg |`| f_consequent r"
-
-  lemma Reg_in_outPortsRule[simp]:  "Reg c |\<in>| outPortsRule r \<longleftrightarrow> c |\<in>| f_consequent r"
-    by (auto simp add: outPortsRule_def fmember.rep_eq ffUnion.rep_eq)
-  lemma Hyp_in_outPortsRule[simp]:  "Hyp h c |\<in>| outPortsRule r \<longleftrightarrow> c |\<in>| f_antecedent r \<and> h |\<in>| a_hyps c"
-    by (auto simp add: outPortsRule_def fmember.rep_eq ffUnion.rep_eq)
-
-  fun outPorts where
-    "outPorts (Rule r) = outPortsRule r"
-   |"outPorts (Assumption r) = {|Reg r|}"
-   |"outPorts (Conclusion r) = {||}"
-   |"outPorts Helper  = {| Reg anyP |}"
-
-  fun labelsIn where
-    "labelsIn _ p = a_conc p"
-
-  fun labelsOut where
-    "labelsOut _ (Reg p) = p"
-   | "labelsOut _ (Hyp h c) = h"
-
-  fun hyps where 
-     "hyps (Rule r) (Hyp h a) = (if a |\<in>| f_antecedent r \<and> h |\<in>| a_hyps a then Some a else None)"
-   | "hyps _ _ = None"
-
-  fun local_vars :: "('form, 'rule) graph_node \<Rightarrow> ('form, 'var) in_port \<Rightarrow> 'var set"  where
-     "local_vars _ a = a_fresh a"
-
-
-  sublocale Labeled_Signature nodes inPorts outPorts hyps labelsIn labelsOut
-  proof
-    case (goal1 n p1 p2)
-    thus ?case by(induction n p1 rule: hyps.induct) (auto  split: if_splits)
-  qed
-
-  lemma hyps_for_conclusion[simp]: "hyps_for (Conclusion n) p = {||}"
-    using hyps_for_subset by auto
-  lemma hyps_for_Helper[simp]: "hyps_for Helper p = {||}"
-    using hyps_for_subset by auto
-  lemma hyps_for_Rule[simp]: "ip |\<in>| f_antecedent r \<Longrightarrow> hyps_for (Rule r) ip = (\<lambda> h. Hyp h ip) |`| a_hyps ip"
-    apply auto
-    apply (case_tac x)
-    apply (auto split: if_splits)
-    done
-end
-
-locale Tasked_Proof_Graph =
-  Abstract_Task freshenLC renameLCs lconsts closed subst subst_lconsts subst_renameLCs anyP  antecedent consequent rules assumptions conclusions  +
-  Scoped_Proof_Graph freshenLC renameLCs lconsts closed subst subst_lconsts subst_renameLCs anyP  inPorts outPorts nodeOf hyps nodes vertices labelsIn labelsOut vidx inst edges local_vars
-   for freshenLC :: "nat \<Rightarrow> 'var \<Rightarrow> 'var" 
-    and renameLCs :: "('var \<Rightarrow> 'var) \<Rightarrow> 'form \<Rightarrow> 'form" 
-    and lconsts :: "'form \<Rightarrow> 'var set" 
-    and closed :: "'form \<Rightarrow> bool"
-    and subst :: "'subst \<Rightarrow> 'form \<Rightarrow> 'form" 
-    and subst_lconsts :: "'subst \<Rightarrow> 'var set" 
-    and subst_renameLCs :: "('var \<Rightarrow> 'var) \<Rightarrow> ('subst \<Rightarrow> 'subst)"
-    and anyP :: "'form"
-
-    and antecedent :: "'rule \<Rightarrow> ('form, 'var) antecedent list" 
-    and consequent :: "'rule \<Rightarrow> 'form list" 
-    and rules :: "'rule stream" 
-
-    and assumptions :: "'form list" 
-    and conclusions :: "'form list" 
-
-    and vertices :: "'vertex fset" 
-    and nodeOf :: "'vertex \<Rightarrow> ('form, 'rule) graph_node" 
-    and edges :: "('vertex, 'form, 'var) edge' set" 
-    and vidx :: "'vertex \<Rightarrow> nat"
-    and inst :: "'vertex \<Rightarrow> 'subst"  +
-  assumes conclusions_present: "set (map Conclusion conclusions) \<subseteq> nodeOf ` fset vertices"
 
 end

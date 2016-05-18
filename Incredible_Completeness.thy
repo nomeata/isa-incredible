@@ -2,6 +2,11 @@ theory Incredible_Completeness
 imports Natural_Deduction Incredible_Deduction Build_Incredible_Tree
 begin
 
+text \<open>
+This theory takes the tree produced in @{theory Build_Incredible_Tree}, globalizes it using
+@{term globalize}, and then builds the incredible proof graph out of it.
+\<close>
+
 type_synonym 'form vertex = "('form \<times> nat list)"
 type_synonym ('form, 'var) edge'' = "('form vertex, 'form, 'var) edge'"
 
@@ -23,7 +28,7 @@ locale Solved_Task =
   assumes solved: solved
 begin
 
-text {* Lets get our hand on concrete trees *}
+text \<open>Let us get our hand on concrete trees.\<close>
 
 definition ts :: "'form \<Rightarrow> (('form entailment) \<times> ('rule \<times> 'form) NatRule) tree" where
   "ts c = (SOME t. snd (fst (root t)) = c \<and> fst (fst (root t)) |\<subseteq>| ass_forms \<and> wf t \<and> tfinite t)"
@@ -52,8 +57,6 @@ lemma iwf_it:
 definition vertices :: "'form vertex fset"  where
   "vertices = Abs_fset (Union ( set (map (\<lambda> c. insert (c, []) ((\<lambda> p. (c, 0 # p)) ` (it_paths (it' c))))  conclusions)))"
 
-text {* For the remaining time, work with the tree with global freshness. *}
-
 lemma mem_vertices: "v |\<in>| vertices \<longleftrightarrow>  (fst v \<in> set conclusions \<and> (snd v = [] \<or> snd v \<in> (op # 0) ` it_paths (it' (fst v))))"
   unfolding vertices_def fmember.rep_eq ffUnion.rep_eq 
   by (cases v)(auto simp add: Abs_fset_inverse Bex_def )
@@ -80,8 +83,6 @@ lemma vertices_induct[consumes 1, case_names None Some]:
   shows "P v"
 using assms by (cases v; rename_tac "is"; case_tac "is"; auto)
 
-text {* Start building the graph *}
-
 fun nodeOf :: "'form vertex \<Rightarrow> ('form, 'rule) graph_node" where
   "nodeOf (pf, []) = Conclusion pf"
 | "nodeOf (pf, i#is) = iNodeOf (tree_at (it' pf) is)"
@@ -90,8 +91,6 @@ fun inst where
   "inst (c,[]) = empty_subst"
  |"inst (c, i#is) = iSubst (tree_at (it' c) is)" 
 
-
-
 lemma terminal_is_nil[simp]: "v |\<in>| vertices \<Longrightarrow> outPorts (nodeOf v) = {||} \<longleftrightarrow> snd v = []"
  apply (induction v rule: nodeOf.induct)
  apply auto
@@ -99,9 +98,7 @@ lemma terminal_is_nil[simp]: "v |\<in>| vertices \<Longrightarrow> outPorts (nod
  apply (erule iwf_it)
  done
 
-
 sublocale Vertex_Graph nodes inPorts outPorts vertices nodeOf.
-
 
 definition edge_from :: "'form \<Rightarrow> nat list => ('form vertex \<times> ('form,'var) out_port)" where 
   "edge_from c is = ((c, 0 # is),  Reg (iOutPort (tree_at (it' c) is)))"
@@ -207,7 +204,6 @@ lemma hyp_edge_to_valid_in_port:
 using assms by (auto simp add: hyp_edge_to_def)
 
 
-
 inductive scope' :: "'form vertex \<Rightarrow> ('form,'var) in_port \<Rightarrow> 'form \<times> nat list \<Rightarrow> bool" where
   "c \<in> set conclusions \<Longrightarrow>
    is' \<in> (op # 0) ` it_paths (it' c) \<Longrightarrow>
@@ -225,22 +221,6 @@ by (auto elim: scope_cases)
 lemma scope_valid_inport:
   "v' |\<in>| vertices \<Longrightarrow> scope' v ip  v' \<longleftrightarrow> (\<exists> i. fst v = fst v' \<and> prefixeq (snd v@[i]) (snd v') \<and> ip = in_port_at v i)"
 by (cases v; cases v')  (auto simp add: scope'.simps mem_vertices)
-
-
-fun inits where
-  "inits [] = [[]]"
-| "inits (i#is) = [] # map (op # i) (inits is)"
-
-lemma inits_Snoc[simp]:
-  "inits (is@[i]) = inits is @ [is@[i]]"
-by (induction "is") auto
-
-lemma inits_eq_Snoc:
-  "inits is = xs @ [x] \<longleftrightarrow> (is = [] \<and> xs = [] \<or> (\<exists> i is'. is = is'@[i] \<and> xs = inits is')) \<and> x = is"
-by (cases "is" rule: rev_cases) auto
-
-lemma in_set_inits[simp]: "is' \<in> set (inits is) \<longleftrightarrow> prefixeq is' is"
-  by (induction "is'" arbitrary: "is"; case_tac "is"; auto)
 
 definition terminal_path_from :: "'form \<Rightarrow> nat list => ('form, 'var) edge'' list" where
    "terminal_path_from c is = map (edge_at c) (rev (inits is))"
@@ -619,32 +599,6 @@ proof
   assume "var \<in> local_vars (nodeOf v) p"
   hence "var \<in> a_fresh p" by simp
 
-  (* 
-  hence fresh_not_self: "freshenLC (vidx v) var \<notin> subst_lconsts (inst v)"
-  proof(cases "is")
-    case Nil thus ?thesis by (simp add: `v=_`)
-  next
-    case (Cons i is'')
-
-    from `valid_in_port (v, p)` `v= _` Cons
-    have  "i=0" "is'' \<in> it_paths (it' c)" by auto
-
-    from  `p |\<in>| inPorts (nodeOf (c, is))`
-    have "p |\<in>| inPorts (iNodeOf (tree_at (it' c) is''))"
-      by (simp add:  `v= _` Cons)
-    with `var \<in> a_fresh p`
-    have "var \<in> all_local_vars  (iNodeOf (tree_at (it' c) is''))"
-      by (auto simp add: all_local_vars_def fmember.rep_eq)
-
-    from iwf_local_not_in_subst[OF
-        iwf_it[OF `c \<in> set conclusions`]
-        `is'' \<in> it_paths (it' c)`
-        `var \<in> all_local_vars  (iNodeOf (tree_at (it' c) is''))`
-        ]
-    show ?thesis by (simp add: `v= _` Cons)
-  qed
-  *)
-
   assume "freshenLC (vidx v) var \<in> subst_lconsts (inst v')"
   then obtain is'' where "is' = 0#is''" and "is'' \<in> it_paths (it' c')"
     using `v' |\<in>| vertices`
@@ -687,12 +641,10 @@ proof
   have "i' < length (inPorts' (nodeOf (c, is)))"
     by (auto elim!: it_paths_SnocE simp add: `is=_` `c' = _` order.strict_trans2 iwf_length_inPorts[OF iwf_it[OF `c \<in> set conclusions`]])
 
-
   have "nodeOf (c, is) \<in> sset nodes"
     unfolding `is = _` `c' = _` nodeOf.simps
     by (rule iNodeOf_tree_at[OF iwf_it[OF `c \<in> set conclusions`]  `is'''' \<in> it_paths (it' c')`[unfolded `c' = _`]])
     
-  
   from `var \<in> a_fresh (inPorts' (iNodeOf (tree_at (it' c') is'''')) ! i')`
        `var \<in> a_fresh p` `p = inPorts' (nodeOf (c, is)) ! i`
        node_disjoint_fresh_vars[OF
@@ -713,7 +665,7 @@ qed
 
 sublocale Scoped_Proof_Graph freshenLC renameLCs lconsts closed subst subst_lconsts subst_renameLCs anyP  inPorts outPorts nodeOf hyps nodes vertices labelsIn labelsOut vidx inst edges local_vars..
 
-text \<open>interpretation of @{term Tasked_Proof_Graph} has to be named to avoid name clashes in @{term Abstract_Task}.\<close>
+(* interpretation of @{term Tasked_Proof_Graph} has to be named to avoid name clashes in @{term Abstract_Task}. *)
 sublocale tpg:Tasked_Proof_Graph freshenLC renameLCs lconsts closed subst subst_lconsts subst_renameLCs anyP antecedent consequent rules assumptions conclusions
   vertices nodeOf edges vidx inst
 proof

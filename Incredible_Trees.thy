@@ -1,6 +1,15 @@
 theory Incredible_Trees
-imports "~~/src/HOL/Library/Sublist"  "~~/src/HOL/Library/Countable" Entailment Incredible_Deduction
+imports
+  "~~/src/HOL/Library/Sublist" 
+  "~~/src/HOL/Library/Countable"
+  Entailment
+  Abstract_Rules_To_Incredible
 begin
+
+text \<open>This theory defines incredible trees, which carry roughly the same information
+as a (tree-shaped) incredible graph, but where the structure is still given by the data type, 
+and not by a set of edges etc.\<close>
+
 
 lemma prefixeq_snocD: "prefixeq (xs@[x]) ys \<Longrightarrow> prefix xs ys"
   by (simp add: prefixI' prefix_order.dual_order.strict_trans1)
@@ -41,6 +50,9 @@ type_synonym ('form, 'rule, 'subst) fresh_check = "('form, 'rule) graph_node \<R
 context  Abstract_Task
 begin
 
+  text \<open>The well-formedness of the tree. The first argument can be varied, depending on whether we
+  are interested in the local freshness side-conditions or not.\<close>
+
   inductive iwf :: "('form, 'rule, 'subst) fresh_check \<Rightarrow> ('form,'rule,'subst,'var) itree \<Rightarrow> 'form entailment \<Rightarrow> bool"
     for fc
     where
@@ -74,6 +86,8 @@ lemma all_local_vars_Assumption[simp]:
   "all_local_vars (Assumption c) = {}"
   unfolding all_local_vars_def by simp
 
+text \<open>Local freshness side-conditions, corresponding what we have in the
+theory @{text Natural_Deduction}.\<close>
 
 inductive local_fresh_check :: "('form, 'rule, 'subst) fresh_check" where
   "\<lbrakk>\<And> f. f |\<in>| \<Gamma> \<Longrightarrow> freshenLC i ` (all_local_vars n) \<inter> lconsts f = {};
@@ -82,12 +96,15 @@ inductive local_fresh_check :: "('form, 'rule, 'subst) fresh_check" where
 
 abbreviation "local_iwf \<equiv> iwf local_fresh_check"
 
+text \<open>No freshness side-conditions. Used with the tree that comes out of
+@{text globalize}, where we establish the (global) freshness conditions
+separately.\<close>
+
 inductive no_fresh_check :: "('form, 'rule, 'subst) fresh_check" where
   "no_fresh_check n i s (\<Gamma> \<turnstile> c)"
 
 abbreviation "plain_iwf \<equiv> iwf no_fresh_check"
   
-
 inductive it_pathsP :: "('form,'rule,'subst,'var) itree \<Rightarrow> nat list \<Rightarrow> bool"  where
    it_paths_Nil: "it_pathsP t []"
  | it_paths_Cons: "i < length (iAnts t) \<Longrightarrow> iAnts t ! i = t' \<Longrightarrow> it_pathsP t' is \<Longrightarrow> it_pathsP t (i#is)"
@@ -164,16 +181,9 @@ lemma it_paths_butlast:
   shows "butlast is \<in> it_paths t"
 using assms prefixeq_butlast by (rule it_paths_prefixeq)
 
-end
-
-
-context Abstract_Task
-begin
 lemma it_path_SnocI:
   assumes "is \<in> it_paths t" 
   assumes "i < length (iAnts (tree_at t is))"
-  (* assumes "iwf fc t ant" *)
-  (* assumes "i |\<in>| inPorts (iNodeOf (tree_at t is))" *)
   shows "is @ [i] \<in> it_paths t"
   using assms
   apply (induction t arbitrary: "is" i)
@@ -220,7 +230,6 @@ lemma iwf_local_not_in_subst:
   apply (auto elim!: it_paths_ConsE dest: list_all2_lengthD list_all2_nthD2 elim!: local_fresh_check.cases)
   done
   
-
 lemma iwf_length_inPorts_not_HNode:
   assumes "iwf fc t ent"
   assumes "is \<in> it_paths t"
@@ -399,9 +408,6 @@ proof-
   show ?thesis by blast
 qed
 
-fun fv_entailment :: "'form entailment \<Rightarrow> 'var set" where
-  "fv_entailment (\<Gamma> \<turnstile> c) = Union (lconsts ` fset \<Gamma>) \<union> lconsts c"
-
 definition hyp_port_for' :: "('form, 'rule, 'subst, 'var) itree \<Rightarrow> nat list \<Rightarrow> 'form \<Rightarrow> nat list \<times> nat \<times> ('form, 'var) out_port" where
   "hyp_port_for' t is f = (SOME x.
    (case x of (is', i, h) \<Rightarrow> 
@@ -511,6 +517,8 @@ lemma list_all2_mapWithIndex2E:
 using assms(1)
 by (auto simp add: list_all2_conv_all_nth mapWithIndex_def nth_enumerate_eq intro: assms(2) split: prod.split)
 
+text \<open>The globalize function, which renames all local constants so that they cannot clash with 
+local constants occurring anywhere else in the tree.\<close>
 
 
 fun globalize :: "nat list \<Rightarrow> ('var \<Rightarrow> 'var) \<Rightarrow> ('form,'rule,'subst,'var) itree \<Rightarrow> ('form,'rule,'subst,'var) itree" where
@@ -704,7 +712,6 @@ lemma fresh_at_path_Cons[simp]:
   apply (metis empty_iff fresh_at_Nil in_set_inits)
   done
   
-
 lemma globalize_local_consts:
   assumes "is' \<in> it_paths (globalize is f t)"
   shows "subst_lconsts (iSubst (tree_at (globalize is f t) is')) \<subseteq>
@@ -719,7 +726,6 @@ lemma globalize_local_consts:
   apply (auto  dest!: subsetD[OF  range_rerename])
   done
   
-
 lemma iwf_globalize':
   assumes "local_iwf t ent"
   assumes "\<And> x. x |\<in>| fst ent \<Longrightarrow> closed x"
@@ -739,7 +745,6 @@ proof(induction ent rule: prod.induct)
     by (auto simp add: closed_no_lconsts rename_closed fmember.rep_eq image_iff)
   finally show ?case.
 qed
-
 end   
 
 end
