@@ -537,8 +537,8 @@ lemma all_local_consts_listed':
 
 lemma no_local_consts_in_consequences':
   "n \<in> sset nodes \<Longrightarrow> Reg p |\<in>| outPorts n \<Longrightarrow>  lconsts p = {}"
-  using no_local_consts_in_consequences no_empty_conclusions
-  sorry
+  using no_local_consts_in_consequences
+  by (auto simp add: nodes_def lconsts_anyP closed_no_lconsts assumptions_closed stream.set_map f_consequent_def)
 
 lemma iwf_globalize:
   assumes "local_iwf t (\<Gamma> \<turnstile> c)"
