@@ -24,6 +24,7 @@ locale Abstract_Formulas =
   assumes rename_subst: "renameLCs p (subst s f) = subst (subst_renameLCs p s) (renameLCs p f)"
   assumes renameLCs_cong: "(\<And> x. x \<in> lconsts f \<Longrightarrow> f1 x = f2 x) \<Longrightarrow> renameLCs f1 f = renameLCs f2 f"
   assumes subst_renameLCs_cong: "(\<And> x. x \<in> subst_lconsts s \<Longrightarrow> f1 x = f2 x) \<Longrightarrow> subst_renameLCs f1 s = subst_renameLCs f2 s"
+  assumes subst_lconsts_subst_renameLCs: "subst_lconsts (subst_renameLCs p s) = p ` subst_lconsts s"
   assumes lconsts_anyP: "lconsts anyP = {}"
   assumes empty_subst: "\<exists> s. (\<forall> f. subst s f = f) \<and> subst_lconsts s = {}"
   assumes anyP_is_any: "\<exists> s. subst s anyP = f"
@@ -66,8 +67,14 @@ begin
   
   lemma rerename_freshen[simp]: "x \<in> V \<Longrightarrow> rerename  V i (isidx is) f (freshenLC i x) = freshenLC (isidx is) x"
     unfolding rerename_def by simp
+
+  (*
+  lemma range_rerename_eq: "range (rerename V from to f) = freshenLC to ` V \<union> (range f - freshenLC from ` V)"
+    apply (auto simp add: rerename_def split: if_splits)
+    sledgehammer
+  *)
   
-  lemma range_rerename: "range (rerename V  from to f) \<subseteq> range (freshenLC to) \<union> range f"
+  lemma range_rerename: "range (rerename V  from to f) \<subseteq> freshenLC to ` V \<union> range f"
     by (auto simp add: rerename_def split: if_splits)
 
   lemma rerename_noop:

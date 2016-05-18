@@ -415,6 +415,9 @@ lemma vidx_inj: "inj_on vidx (fset vertices)"
   by(rule inj_onI)
     (auto simp add:  mem_vertices[unfolded fmember.rep_eq] iAnnot_globalize)
 
+lemma vidx_not_v_away[simp]: "v |\<in>| vertices \<Longrightarrow> vidx v \<noteq> v_away"
+  by (cases v rule:vidx.cases) (auto simp add: iAnnot_globalize)
+
 sublocale Instantiation inPorts outPorts nodeOf hyps  nodes edges vertices labelsIn labelsOut freshenLC renameLCs lconsts closed subst subst_lconsts subst_renameLCs anyP vidx inst
 proof
   show "inj_on vidx (fset vertices)" by (rule vidx_inj)
@@ -606,14 +609,31 @@ proof
   qed
 qed
 
+lemma  disjoint_fresh_vars:
+  assumes "r \<in> sset rules"
+  assumes "i < length (antecedent r)"
+  assumes "i' < length (antecedent r)"
+  shows "a_fresh (antecedent r ! i) \<inter> a_fresh (antecedent r ! i') = {} \<or> i = i'"
+  sorry
+
+lemma node_disjoint_fresh_vars:
+  assumes "n \<in> sset nodes"
+  assumes "i < length (inPorts' n)"
+  assumes "i' < length (inPorts' n)"
+  shows "a_fresh (inPorts' n ! i) \<inter> a_fresh (inPorts' n ! i') = {} \<or> i = i'"
+  using assms disjoint_fresh_vars
+  by (fastforce simp add: nodes_def stream.set_map)
+
 sublocale Well_Scoped_Instantiation  freshenLC renameLCs lconsts closed subst subst_lconsts subst_renameLCs anyP inPorts outPorts nodeOf hyps  nodes vertices labelsIn labelsOut vidx inst edges local_vars
 proof
   fix v p var v'
   assume "valid_in_port (v, p)"
-  then obtain c "is" where "v = (c,is)" by (cases v, auto)
+  hence "v |\<in>| vertices" by simp
+  
+  obtain c "is" where "v = (c,is)"  by (cases v, auto)
 
   from `valid_in_port (v, p)` `v= _`
-  have "(c,is) |\<in>| vertices"  and "p |\<in>| inPorts (nodeOf (c, is))" by simp_all
+  have "(c,is) |\<in>| vertices"  and "p |\<in>| inPorts (nodeOf (c, is))"  by simp_all
   hence "c \<in> set conclusions" by (simp add: mem_vertices)
   
   from `p |\<in>| _` obtain i where
@@ -627,8 +647,7 @@ proof
   assume "var \<in> local_vars (nodeOf v) p"
   hence "var \<in> a_fresh p" by simp
 
-  thm iwf_local_not_in_subst[OF local_iwf_it[OF `c \<in> set conclusions`]]
-
+  (* 
   hence fresh_not_self: "freshenLC (vidx v) var \<notin> subst_lconsts (inst v)"
   proof(cases "is")
     case Nil thus ?thesis by (simp add: `v=_`)
@@ -652,39 +671,71 @@ proof
         ]
     show ?thesis by (simp add: `v= _` Cons)
   qed
-  
+  *)
+
   assume "freshenLC (vidx v) var \<in> subst_lconsts (inst v')"
-  also have "subst_lconsts (inst v') \<subseteq> Union ((\<lambda> is''. range (freshenLC (vidx (c', is'')))) ` set (inits is'))"
-    sorry
-  finally obtain is'' where "prefixeq is'' is'"  and "vidx (c,is) = vidx (c', is'')"
-    by (auto simp add: `v=_`)
+  then obtain is'' where "is' = 0#is''" and "is'' \<in> it_paths (it' c')"
+    using `v' |\<in>| vertices`
+    by (cases is') (auto simp add: `v'=_`)
 
-  from `prefixeq is'' is'` `v' |\<in>| vertices` `v' = _`
-  have "(c',is'') |\<in>| vertices" using prefixeq_vertices by metis
+  note `freshenLC (vidx v) var \<in> subst_lconsts (inst v')`
+  also
+  have "subst_lconsts (inst v') = subst_lconsts (iSubst (tree_at (it' c') is''))"
+    by (simp add: `v'=_` `is'=_`)
+  also
+  from `is'' \<in> it_paths (it' c')`
+  have "\<dots> \<subseteq> fresh_at_path (it' c') is'' \<union> range (freshenLC v_away)"
+    by (rule globalize_local_consts)
+  finally
+  have "freshenLC (vidx v) var \<in> fresh_at_path (it' c') is''"
+    using `v |\<in>| vertices` by auto
+  then obtain is''' where "prefixeq is''' is''"  and "freshenLC (vidx v) var \<in> fresh_at (it' c') is'''"
+    unfolding fresh_at_path_def by auto
+  then obtain i' is'''' where "prefixeq (is''''@[i']) is''" 
+      and "freshenLC (vidx v) var \<in> fresh_at (it' c') (is''''@[i'])"
+    using append_butlast_last_id[where xs = is''', symmetric]
+    apply (cases "is''' = []")
+    apply (auto simp del: fresh_at_snoc append_butlast_last_id)
+    apply metis
+    done
 
-  from `(c',is'') |\<in>| vertices` `(c,is) |\<in>| vertices` `vidx (c,is) = vidx (c', is'')`
-  have "c' = c" and "is'' = is"  by (auto dest: Fun.inj_onD[OF vidx_inj] simp add: fmember.rep_eq)
+  from  `is'' \<in> it_paths (it' c')` `prefixeq (is''''@[i']) is''`
+  have "(is''''@[i']) \<in> it_paths (it' c')" by (rule it_paths_prefixeq)
+  hence "is'''' \<in> it_paths (it' c')" using append_prefixeqD it_paths_prefixeq by blast
 
-  from `freshenLC (vidx v) var \<in> subst_lconsts (inst v')`
-       `freshenLC (vidx v) var \<notin> subst_lconsts (inst v)`
-  have "v \<noteq> v'" by auto
-  hence "is' \<noteq> is''" by (simp add: `is'' = is` `c' = c` `v = _` `v' = _`)
-  with `prefixeq is'' is'` `is'' = is`
-  have "prefix is is'" by simp
+  from this `freshenLC (vidx v) var \<in> fresh_at (it' c') (is''''@[i'])`
+  have "c = c' \<and> is = 0 # is'''' \<and> var \<in> a_fresh (inPorts' (iNodeOf (tree_at (it' c') is'''')) ! i')"
+    unfolding fresh_at_def' using `v |\<in>| vertices`  `v' |\<in>| vertices`
+    apply (cases "is")
+    apply (auto split: if_splits simp add:  iAnnot_globalize it_paths_butlast `v=_` `v'=_` `is'=_`)
+    done
+  hence "c' = c" and "is = 0 # is''''" and "var \<in> a_fresh (inPorts' (iNodeOf (tree_at (it' c') is'''')) ! i')" by simp_all
+
+  from `(is''''@[i']) \<in> it_paths (it' c')`
+  have "i' < length (inPorts' (nodeOf (c, is)))"
+    by (auto elim!: it_paths_SnocE simp add: `is=_` `c' = _` order.strict_trans2 iwf_length_inPorts[OF global_iwf_it[OF `c \<in> set conclusions`]])
+
+
+  have "nodeOf (c, is) \<in> sset nodes"
+    unfolding `is = _` `c' = _` nodeOf.simps
+    by (rule iNodeOf_tree_at[OF global_iwf_it[OF `c \<in> set conclusions`]  `is'''' \<in> it_paths (it' c')`[unfolded `c' = _`]])
     
+  
+  from `var \<in> a_fresh (inPorts' (iNodeOf (tree_at (it' c') is'''')) ! i')`
+       `var \<in> a_fresh p` `p = inPorts' (nodeOf (c, is)) ! i`
+       node_disjoint_fresh_vars[OF
+          `nodeOf (c, is) \<in> sset nodes`
+          `i < length (inPorts' (nodeOf (c, is)))` `i' < length (inPorts' (nodeOf (c, is)))`]
+  have "i' = i" by (auto simp add: `is=_` `c'=c`)
+   
+  from  `prefixeq (is''''@[i']) is''`
+  have "prefixeq (is @ [i']) is'" by (simp add: `is'=_` `is=_`)
 
-  have "prefixeq (is @ [i]) is'" sorry
-
-  from `prefixeq (is @ [i]) is'`
-  have "is' \<noteq> []" by (cases is') auto
-  with `v' |\<in>| vertices` `v' = _`
-  obtain is'' where
-    "is' = 0 # is''"  and "is'' \<in> it_paths (it' c')"
-      by (auto elim: vertices_cases)
  
-  from `c \<in> set conclusions`  `is'' \<in> it_paths (it' c')` `prefixeq (is @ [i]) is'` `p = in_port_at (c, is) i`
+  from `c \<in> set conclusions`  `is'' \<in> it_paths (it' c')` `prefixeq (is @ [i']) is'`
+      `p = in_port_at (c, is) i`
   have "scope' v p v'"
-  unfolding `v=_` `v'=_` `c' = _` `is' = _`  by (auto intro: scope'.intros)
+  unfolding `v=_` `v'=_` `c' = _` `is' = _`  `i'=_` by (auto intro: scope'.intros)
   thus "v' \<in> scope (v, p)" using `valid_in_port (v, p)` by (simp add: in_scope)
 qed
 
