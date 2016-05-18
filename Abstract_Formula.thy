@@ -57,27 +57,24 @@ begin
   lemma freshenLC_range_eq_iff[simp]: "freshenLC a v \<in> range (freshenLC a') \<longleftrightarrow> a = a'"
     by auto
 
-  definition rerename :: "nat \<Rightarrow> nat \<Rightarrow> ('var \<Rightarrow> 'var) \<Rightarrow> ('var \<Rightarrow> 'var)" where
-    "rerename from to f x = (if x \<in> range (freshenLC from) then freshenLC to (inv (freshenLC from) x) else f x)"
+  definition rerename :: "'var set \<Rightarrow> nat \<Rightarrow> nat \<Rightarrow> ('var \<Rightarrow> 'var) \<Rightarrow> ('var \<Rightarrow> 'var)" where
+    "rerename V from to f x = (if x \<in> freshenLC from ` V then freshenLC to (inv (freshenLC from) x) else f x)"
   
   lemma inj_freshenLC[simp]: "inj (freshenLC i)"
     by (rule injI) simp
   
-  lemma rerename_freshen[simp]: "rerename i (isidx is) f (freshenLC i x) = freshenLC (isidx is) x"
+  lemma rerename_freshen[simp]: "x \<in> V \<Longrightarrow> rerename  V i (isidx is) f (freshenLC i x) = freshenLC (isidx is) x"
     unfolding rerename_def by simp
   
-  lemma rerename_freshen_comp: "rerename i (isidx is) f \<circ> freshenLC i = freshenLC (isidx is)"
-    by auto
-
-  lemma range_rerename: "range (rerename from to f) \<subseteq> range (freshenLC to) \<union> range f"
+  lemma range_rerename: "range (rerename V  from to f) \<subseteq> range (freshenLC to) \<union> range f"
     by (auto simp add: rerename_def split: if_splits)
 
   lemma rerename_noop:
-      "x \<notin> range (freshenLC from)  \<Longrightarrow> rerename from to f x = f x"
+      "x \<notin> freshenLC from ` V  \<Longrightarrow> rerename V from to f x = f x"
     by (auto simp add: rerename_def split: if_splits)
 
   lemma rerename_subst_noop:
-      "subst_lconsts s \<inter> range (freshenLC from) = {}  \<Longrightarrow> subst_renameLCs (rerename from to f) s = subst_renameLCs f s"
+      "freshenLC from ` V \<inter> subst_lconsts s  = {}  \<Longrightarrow> subst_renameLCs (rerename V from to f) s = subst_renameLCs f s"
       by (intro subst_renameLCs_cong rerename_noop) auto
 end
 

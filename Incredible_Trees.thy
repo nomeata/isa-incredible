@@ -80,14 +80,24 @@ lemma iwf_subst_freshen_outPort:
   snd ent = subst (iSubst ts) (freshen (iAnnot ts) (iOutPort ts))"
   by (auto elim: iwf.cases)
 
+definition all_local_vars :: "('form, 'rule) graph_node \<Rightarrow> 'var set" where
+  "all_local_vars n = \<Union>(local_vars n ` fset (inPorts n))"
+
+lemma all_local_vars_Helper[simp]:
+  "all_local_vars Helper = {}"
+  unfolding all_local_vars_def by simp
+
+lemma all_local_vars_Assumption[simp]:
+  "all_local_vars (Assumption c) = {}"
+  unfolding all_local_vars_def by simp
 
 
-  inductive local_fresh_check :: "('form, 'rule, 'subst) fresh_check" where
-    "\<lbrakk>\<And> ip f. ip |\<in>| inPorts n  \<Longrightarrow> f |\<in>| \<Gamma> \<Longrightarrow> freshenLC i ` (local_vars n ip) \<inter> lconsts f = {};
-      \<And> ip. ip |\<in>| inPorts n  \<Longrightarrow> freshenLC i ` (local_vars n ip) \<inter> subst_lconsts s = {}
-     \<rbrakk> \<Longrightarrow> local_fresh_check n i s (\<Gamma> \<turnstile> c)"
+inductive local_fresh_check :: "('form, 'rule, 'subst) fresh_check" where
+  "\<lbrakk>\<And> f. f |\<in>| \<Gamma> \<Longrightarrow> freshenLC i ` (all_local_vars n) \<inter> lconsts f = {};
+    freshenLC i ` (all_local_vars n) \<inter> subst_lconsts s = {}
+   \<rbrakk> \<Longrightarrow> local_fresh_check n i s (\<Gamma> \<turnstile> c)"
 
-  abbreviation "local_iwf \<equiv> iwf local_fresh_check"
+abbreviation "local_iwf \<equiv> iwf local_fresh_check"
   
   
 
@@ -207,14 +217,12 @@ lemma iwf_length_inPorts:
 lemma iwf_local_not_in_subst:
   assumes "local_iwf t ent"
   assumes "is \<in> it_paths t"
-  assumes "p |\<in>| inPorts (iNodeOf (tree_at t is))"
-  assumes "var \<in> a_fresh p"
+  assumes "var \<in> all_local_vars (iNodeOf (tree_at t is))"
   shows "freshenLC (iAnnot (tree_at t is)) var \<notin> subst_lconsts (iSubst (tree_at t is))"
   using assms
   apply (induction arbitrary: "is" rule: iwf.induct)
   apply (case_tac "is")
   apply (auto elim!: it_paths_ConsE dest: list_all2_lengthD list_all2_nthD2 elim!: local_fresh_check.cases)
-  apply blast
   done
   
 
@@ -553,11 +561,9 @@ by (auto simp add: list_all2_conv_all_nth mapWithIndex_def nth_enumerate_eq intr
 
 fun globalize :: "nat list \<Rightarrow> ('var \<Rightarrow> 'var) \<Rightarrow> ('form,'rule,'subst,'var) itree \<Rightarrow> ('form,'rule,'subst,'var) itree" where
   "globalize is f (INode n p i s ants) =
-     (let f' = rerename i (isidx is) f
+     (let f' = rerename (all_local_vars n) i (isidx is) f
      in (INode n p (isidx is) (subst_renameLCs f s) (mapWithIndex (\<lambda> i t. globalize (is@[i]) f' t) ants)))"
-  | "globalize is f (HNode i s) =
-     (let f' = rerename i (isidx is) f
-      in (HNode (isidx is) (subst_renameLCs f s)))"
+  | "globalize is f (HNode i s) = (HNode (isidx is) (subst_renameLCs f s))"
 
 lemma iAnnot_globalize:
   assumes "is' \<in> it_paths (globalize is f t)"
@@ -576,11 +582,12 @@ using assms
 proof (induction t "\<Gamma> \<turnstile> c" arbitrary: "is" f \<Gamma> c rule: iwf.induct)
   case (iwf n p s i \<Gamma> ants c "is" f)
 
+  let ?f' = "rerename (all_local_vars n) i (isidx is) f"
+
   from `local_fresh_check n i s (\<Gamma> \<turnstile> c)`
-  have "\<And> ip . ip |\<in>| inPorts n  \<Longrightarrow> freshenLC i ` (local_vars n ip) \<inter> subst_lconsts s = {}" 
+  have "freshenLC i ` (all_local_vars n) \<inter> subst_lconsts s = {}" 
     by (rule local_fresh_check.cases) simp
-  have "subst_lconsts s \<inter> range (freshenLC i) = {}" sorry
-  hence rerename_subst: "subst_renameLCs (rerename i (isidx is) f) s = subst_renameLCs f s"
+  hence rerename_subst: "subst_renameLCs ?f' s = subst_renameLCs f s"
     by (rule rerename_subst_noop)
 
   note `n \<in> sset nodes`
@@ -588,11 +595,10 @@ proof (induction t "\<Gamma> \<turnstile> c" arbitrary: "is" f \<Gamma> c rule: 
   note `Reg p |\<in>| outPorts n`
   moreover
   { fix i' 
-    let ?t = "globalize (is @ [i']) (rerename i (isidx is) f) (ants ! i')"
+    let ?t = "globalize (is @ [i']) ?f' (ants ! i')"
     let ?ip = "inPorts' n ! i'"
     let ?\<Gamma>' = "(\<lambda>h. subst (subst_renameLCs f s) (freshen (isidx is) (labelsOut n h))) |`| hyps_for n ?ip"
     let ?c' = "subst (subst_renameLCs f s) (freshen (isidx is) (labelsIn n ?ip))"
-    let ?f' = "rerename i (isidx is) f"
 
     assume "i' < length (inPorts' n)"
     from List.list_all2_nthD[OF `list_all2 _ _ _` this,simplified]
@@ -601,13 +607,13 @@ proof (induction t "\<Gamma> \<turnstile> c" arbitrary: "is" f \<Gamma> c rule: 
             renameLCs ?f' (subst s (freshen i (a_conc ?ip))))"
          by simp
     also have "renameLCs ?f' |`| ((\<lambda>h. subst s (freshen i (labelsOut n h))) |`| hyps_for n ?ip |\<union>|  \<Gamma>)
-      = (\<lambda>x. subst (subst_renameLCs (rerename i (isidx is) f) s) (renameLCs ?f' (freshen i (labelsOut n x)))) |`|  hyps_for n ?ip |\<union>| renameLCs ?f' |`| \<Gamma>"
+      = (\<lambda>x. subst (subst_renameLCs ?f' s) (renameLCs ?f' (freshen i (labelsOut n x)))) |`|  hyps_for n ?ip |\<union>| renameLCs ?f' |`| \<Gamma>"
      by (simp add: fimage_fimage fimage_funion comp_def rename_subst)
     also have "renameLCs ?f' |`| \<Gamma> =  renameLCs f |`| \<Gamma>"
     proof(rule fimage_cong[OF refl])
       fix x
       assume "x |\<in>| \<Gamma>"
-      show "renameLCs (rerename i (isidx is) f) x = renameLCs f x"
+      show "renameLCs ?f' x = renameLCs f x"
         sorry
     qed
     also have "(\<lambda>x. subst (subst_renameLCs ?f' s) (renameLCs ?f' (freshen i (labelsOut n x)))) |`|  hyps_for n ?ip = ?\<Gamma>'"
@@ -616,11 +622,13 @@ proof (induction t "\<Gamma> \<turnstile> c" arbitrary: "is" f \<Gamma> c rule: 
       assume "hyp |\<in>| hyps_for n (inPorts' n ! i')"
       show "subst (subst_renameLCs ?f' s) (renameLCs ?f' (freshen i (labelsOut n hyp))) =
             subst (subst_renameLCs f s)  (freshen (isidx is) (labelsOut n hyp))"
-      by (simp add: freshen_def rename_rename rerename_freshen_comp rerename_subst)
+      (* by (simp add: freshen_def rename_rename (* rerename_freshen_comp*)  rerename_subst) *)
+      sorry
     qed
     also have "renameLCs ?f' (subst s (freshen i (a_conc ?ip))) = subst (subst_renameLCs ?f' s) (renameLCs ?f' (freshen i (a_conc ?ip)))" by (simp add: rename_subst)
     also have "... = ?c'"
-      by (simp add: freshen_def rename_rename rerename_freshen_comp rerename_subst)
+      (* by (simp add: freshen_def rename_rename rerename_freshen_comp rerename_subst) *)
+      sorry
     finally
     have "local_iwf ?t (?\<Gamma>' |\<union>| renameLCs f |`| \<Gamma> \<turnstile> ?c')".
   }    
@@ -628,7 +636,7 @@ proof (induction t "\<Gamma> \<turnstile> c" arbitrary: "is" f \<Gamma> c rule: 
   have "list_all2
      (\<lambda>ip t. local_iwf t ((\<lambda>h. subst (subst_renameLCs f s)
        (freshen (isidx is) (labelsOut n h))) |`| hyps_for n ip |\<union>|  renameLCs f |`| \<Gamma> \<turnstile> subst (subst_renameLCs f s) (freshen (isidx is) (labelsIn n ip))))
-     (inPorts' n) (mapWithIndex (\<lambda>ia. globalize (is @ [ia]) (rerename i (isidx is) f)) ants)"
+     (inPorts' n) (mapWithIndex (\<lambda>ia. globalize (is @ [ia]) ?f') ants)"
    by (auto simp add: list_all2_conv_all_nth)
   moreover
   from `local_fresh_check n i s (\<Gamma> \<turnstile> c)`
@@ -646,7 +654,17 @@ proof (induction t "\<Gamma> \<turnstile> c" arbitrary: "is" f \<Gamma> c rule: 
     by (rule iwf.intros(1))
 next
   case (iwfH c \<Gamma> s i "is" f)
-  show "local_iwf (globalize is f (HNode i s)) (renameLCs f |`| \<Gamma> \<turnstile> renameLCs f c)" sorry
+  have "renameLCs f c |\<notin>| ass_forms"
+    sorry
+  moreover
+  have "renameLCs f c |\<in>| renameLCs f |`| \<Gamma>" sorry
+  moreover
+  have "renameLCs f c = subst (subst_renameLCs f s)  (freshen (isidx is) anyP)"
+    sorry
+  ultimately 
+  show "local_iwf (globalize is f (HNode i s)) (renameLCs f |`| \<Gamma> \<turnstile> renameLCs f c)" 
+    unfolding globalize.simps Let_def 
+    by (rule iwf.intros(2))
 qed
 
 lemma iwf_globalize':

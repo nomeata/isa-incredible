@@ -641,12 +641,14 @@ proof
     from  `p |\<in>| inPorts (nodeOf (c, is))`
     have "p |\<in>| inPorts (iNodeOf (tree_at (it' c) is''))"
       by (simp add:  `v= _` Cons)
+    with `var \<in> a_fresh p`
+    have "var \<in> all_local_vars  (iNodeOf (tree_at (it' c) is''))"
+      by (auto simp add: all_local_vars_def fmember.rep_eq)
 
     from iwf_local_not_in_subst[OF
         local_iwf_it[OF `c \<in> set conclusions`]
         `is'' \<in> it_paths (it' c)`
-        `p |\<in>| inPorts (iNodeOf (tree_at (it' c) is''))`
-        `var \<in> a_fresh p`
+        `var \<in> all_local_vars  (iNodeOf (tree_at (it' c) is''))`
         ]
     show ?thesis by (simp add: `v= _` Cons)
   qed

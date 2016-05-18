@@ -36,7 +36,8 @@ proof(induction)
       let "?it" = "INode (Assumption c) c undefined undefined [] ::  ('form, 'rule, 'subst, 'var) itree"
 
       from `c \<in> set assumptions`
-      have "local_iwf ?it (\<Gamma> \<turnstile> c)" by (auto intro!: iwf local_fresh_check.intros)
+      have "local_iwf ?it (\<Gamma> \<turnstile> c)"
+        by (auto intro!: iwf local_fresh_check.intros)
 
       thus ?thesis unfolding Axiom..
     next
@@ -93,11 +94,12 @@ proof(induction)
             \<Gamma>  \<turnstile> subst s (freshen i (a_conc ant)))".
     }
     moreover
-
-    note NatRule(5,6)
+    from NatRule(5,6)
+    have "local_fresh_check (Rule (fst rule)) i s (\<Gamma> \<turnstile> subst s (freshen i c))"
+      by (fastforce intro!: local_fresh_check.intros simp add: all_local_vars_def fmember.rep_eq)
     ultimately
     have "local_iwf ?it ((\<Gamma> \<turnstile> subst s (freshen i c)))"
-      by (intro iwf local_fresh_check.intros) (auto simp add: list_all2_map2 list_all2_same)
+      by (intro iwf ) (auto simp add: list_all2_map2 list_all2_same)
     thus ?thesis unfolding NatRule..
   next
   case (Cut \<Gamma> con)
