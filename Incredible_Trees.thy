@@ -600,6 +600,8 @@ proof (induction t "\<Gamma> \<turnstile> c" arbitrary: "is" f \<Gamma> c rule: 
     let ?\<Gamma>' = "(\<lambda>h. subst (subst_renameLCs f s) (freshen (isidx is) (labelsOut n h))) |`| hyps_for n ?ip"
     let ?c' = "subst (subst_renameLCs f s) (freshen (isidx is) (labelsIn n ?ip))"
 
+    have subset_conc: "lconsts (a_conc (inPorts' n ! i')) \<subseteq> all_local_vars n" sorry
+
     assume "i' < length (inPorts' n)"
     from List.list_all2_nthD[OF `list_all2 _ _ _` this,simplified]
     have "local_iwf ?t
@@ -613,22 +615,31 @@ proof (induction t "\<Gamma> \<turnstile> c" arbitrary: "is" f \<Gamma> c rule: 
     proof(rule fimage_cong[OF refl])
       fix x
       assume "x |\<in>| \<Gamma>"
-      show "renameLCs ?f' x = renameLCs f x"
-        sorry
+      with `local_fresh_check n i s (\<Gamma> \<turnstile> c)`
+      have "freshenLC i ` (all_local_vars n) \<inter> lconsts x = {}" 
+        by (elim local_fresh_check.cases) simp
+      thus "renameLCs ?f' x = renameLCs f x"
+        by (rule rerename_rename_noop)
     qed
     also have "(\<lambda>x. subst (subst_renameLCs ?f' s) (renameLCs ?f' (freshen i (labelsOut n x)))) |`|  hyps_for n ?ip = ?\<Gamma>'"
     proof(rule fimage_cong[OF refl])
       fix hyp
       assume "hyp |\<in>| hyps_for n (inPorts' n ! i')"
+      have subset_hyp: "lconsts (labelsOut n hyp) \<subseteq> all_local_vars n" sorry
+      
       show "subst (subst_renameLCs ?f' s) (renameLCs ?f' (freshen i (labelsOut n hyp))) =
             subst (subst_renameLCs f s)  (freshen (isidx is) (labelsOut n hyp))"
-      (* by (simp add: freshen_def rename_rename (* rerename_freshen_comp*)  rerename_subst) *)
-      sorry
+        apply (simp add: freshen_def rename_rename  rerename_subst)
+        apply (rule arg_cong[OF renameLCs_cong])
+        apply (auto dest: subsetD[OF subset_hyp])
+        done
     qed
     also have "renameLCs ?f' (subst s (freshen i (a_conc ?ip))) = subst (subst_renameLCs ?f' s) (renameLCs ?f' (freshen i (a_conc ?ip)))" by (simp add: rename_subst)
     also have "... = ?c'"
-      (* by (simp add: freshen_def rename_rename rerename_freshen_comp rerename_subst) *)
-      sorry
+        apply (simp add: freshen_def rename_rename  rerename_subst)
+        apply (rule arg_cong[OF renameLCs_cong])
+        apply (auto dest: subsetD[OF subset_conc])
+        done
     finally
     have "local_iwf ?t (?\<Gamma>' |\<union>| renameLCs f |`| \<Gamma> \<turnstile> ?c')".
   }    
@@ -654,13 +665,16 @@ proof (induction t "\<Gamma> \<turnstile> c" arbitrary: "is" f \<Gamma> c rule: 
     by (rule iwf.intros(1))
 next
   case (iwfH c \<Gamma> s i "is" f)
+  from `c |\<notin>| ass_forms`
   have "renameLCs f c |\<notin>| ass_forms"
-    sorry
+    using assumptions_closed closed_no_lconsts lconsts_renameLCs rename_closed by fastforce
   moreover
-  have "renameLCs f c |\<in>| renameLCs f |`| \<Gamma>" sorry
+  from `c |\<in>| \<Gamma>`
+  have "renameLCs f c |\<in>| renameLCs f |`| \<Gamma>"  by auto
   moreover
+  from `c = subst s (freshen i anyP)`
   have "renameLCs f c = subst (subst_renameLCs f s)  (freshen (isidx is) anyP)"
-    sorry
+    by (metis freshen_closed lconsts_anyP rename_closed rename_subst)
   ultimately 
   show "local_iwf (globalize is f (HNode i s)) (renameLCs f |`| \<Gamma> \<turnstile> renameLCs f c)" 
     unfolding globalize.simps Let_def 
@@ -669,6 +683,7 @@ qed
 
 lemma iwf_globalize':
   assumes "local_iwf t ent"
+  assumes "\<And> x. x |\<in>| fst ent \<Longrightarrow> closed x"
   assumes "closed (snd ent)"
   shows "local_iwf (globalize is (freshenLC v_away) t) ent"
 using assms
@@ -677,9 +692,12 @@ proof(induction ent rule: prod.induct)
   have "local_iwf (globalize is (freshenLC v_away) t) (renameLCs (freshenLC v_away) |`| \<Gamma> \<turnstile> renameLCs (freshenLC v_away) c)"
     by (rule iwf_globalize[OF Pair(1)])
   also
-  from Pair(2) have "closed c" by simp
+  from Pair(3) have "closed c" by simp
   hence "renameLCs (freshenLC v_away) c = c" by (simp add: closed_no_lconsts rename_closed)
-  also have "renameLCs (freshenLC v_away) |`| \<Gamma> = \<Gamma>" sorry
+  also
+  from Pair(2)
+  have "renameLCs (freshenLC v_away) |`| \<Gamma> = \<Gamma>"
+    by (auto simp add: closed_no_lconsts rename_closed fmember.rep_eq image_iff)
   finally show ?case.
 qed
 

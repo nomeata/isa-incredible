@@ -22,6 +22,7 @@ locale Abstract_Formulas =
   assumes fv_subst: "lconsts (subst s f) \<subseteq> lconsts f \<union> subst_lconsts s"
   assumes rename_rename: "renameLCs p1 (renameLCs p2 f) = renameLCs (p1 \<circ> p2) f"
   assumes rename_subst: "renameLCs p (subst s f) = subst (subst_renameLCs p s) (renameLCs p f)"
+  assumes renameLCs_cong: "(\<And> x. x \<in> lconsts f \<Longrightarrow> f1 x = f2 x) \<Longrightarrow> renameLCs f1 f = renameLCs f2 f"
   assumes subst_renameLCs_cong: "(\<And> x. x \<in> subst_lconsts s \<Longrightarrow> f1 x = f2 x) \<Longrightarrow> subst_renameLCs f1 s = subst_renameLCs f2 s"
   assumes lconsts_anyP: "lconsts anyP = {}"
   assumes empty_subst: "\<exists> s. (\<forall> f. subst s f = f) \<and> subst_lconsts s = {}"
@@ -72,6 +73,10 @@ begin
   lemma rerename_noop:
       "x \<notin> freshenLC from ` V  \<Longrightarrow> rerename V from to f x = f x"
     by (auto simp add: rerename_def split: if_splits)
+
+  lemma rerename_rename_noop:
+      "freshenLC from ` V \<inter> lconsts form  = {}  \<Longrightarrow> renameLCs (rerename V from to f) form = renameLCs f form"
+      by (intro renameLCs_cong rerename_noop) auto
 
   lemma rerename_subst_noop:
       "freshenLC from ` V \<inter> subst_lconsts s  = {}  \<Longrightarrow> subst_renameLCs (rerename V from to f) s = subst_renameLCs f s"
