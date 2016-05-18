@@ -46,7 +46,8 @@ lemma local_iwf_it:
   assumes "c \<in> set conclusions"
   shows "local_iwf (it' c) (fst (root (ts c)))"
   using assms
-    by (auto simp add: ts_conc conclusions_closed intro!: iwf_globalize' iwf_to_it ts_finite ts_wf)
+  apply (auto simp add: ts_conc conclusions_closed intro!: iwf_globalize' iwf_to_it ts_finite ts_wf)
+  by (meson assumptions_closed fset_mp mem_ass_forms mem_conc_forms ts_context)
 
 definition vertices :: "'form vertex fset"  where
   "vertices = Abs_fset (Union ( set (map (\<lambda> c. insert (c, []) ((\<lambda> p. (c, 0 # p)) ` (it_paths (it' c))))  conclusions)))"
