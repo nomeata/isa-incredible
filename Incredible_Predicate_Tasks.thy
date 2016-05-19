@@ -190,8 +190,7 @@ interpretation Well_Scoped_Graph
   nodeOf
   task_edges
   task.hyps
-apply standard
-sorry
+by standard (auto split: if_splits)
 
 interpretation Acyclic_Graph
   task.nodes
@@ -291,6 +290,13 @@ interpretation Proof_Graph
   inst
 ..
 
+lemma path_20:
+  assumes "task.path 2 0 pth"
+  shows "(1, allI_input) \<in> snd ` set pth"
+sorry
+
+lemma scope_21: "2 \<in> task.scope (1, allI_input)"
+  by (auto intro!: task.scope.intros elim: path_20 simp add: task.outPortsRule_def predicate.f_antecedent_def predicate.f_consequent_def)
 
 interpretation Scoped_Proof_Graph
   "curry to_nat :: nat \<Rightarrow> var \<Rightarrow> var"
@@ -313,8 +319,7 @@ interpretation Scoped_Proof_Graph
   inst
   task_edges
   task.local_vars
-apply standard
-sorry
+by standard (auto simp add: predicate.f_antecedent_def scope_21)
 
 interpretation Tasked_Proof_Graph
   "curry to_nat :: nat \<Rightarrow> var \<Rightarrow> var"
