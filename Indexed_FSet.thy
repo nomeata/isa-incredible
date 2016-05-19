@@ -3,6 +3,9 @@ imports
   "~~/src/HOL/Library/FSet"
 begin
 
+text \<open>It is convenient to address the members of a finite set by a natural number, and
+also to convert a finite set to a list.\<close>
+
 context includes fset.lifting
 begin
 lift_definition fset_from_list :: "'a list => 'a fset" is set by (rule finite_set)
@@ -83,7 +86,7 @@ lemma fidx_eq[simp]: "x |\<in>|\<^bsub>i\<^esub> s \<Longrightarrow> fidx s x = 
 lemma fidx_inj[simp]: "x |\<in>| s \<Longrightarrow> y |\<in>| s \<Longrightarrow> fidx s x = fidx s y \<longleftrightarrow> x = y"
   by (auto dest!: fmember_is_indexed_fmember simp add: indexed_fmember_unique)
 
-lemma "inj_on (fidx vertices) (fset vertices)"
+lemma inj_on_fidx: "inj_on (fidx vertices) (fset vertices)"
   by (rule inj_onI) (auto simp: fmember.rep_eq [symmetric])
 
 end

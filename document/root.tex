@@ -63,18 +63,20 @@ as powerful as natural deduction.
 \section{Introduction}
 
 The Incredible Proof Machine (\url{http://incredible.pm}) is an educational tool that allows the user to
-prove theorems just by dragging proof blocks (corresponding rules) onto a canvas, and connecting them
+prove theorems just by dragging proof blocks (corresponding to proof rules) onto a canvas, and connecting them
 correctly.
 
-In our ITP 2016 paper (\cite{incredible}) we formally describe the shape of these graphs, as port graphs,
-and give the necessary conditions for when we consider such a graph a valid proof graph. The present
-Isabelle formalization implements these definitions in Isabelle, and furthermore proves that such
-proof graphs are just as powerful as natural deduction.
+In the ITP 2016 paper \cite{incredible} the first author formally describes the
+shape of these graphs, as port graphs, and gives the necessary conditions for
+when we consider such a graph a valid proof graph. The present Isabelle
+formalization implements these definitions in Isabelle, and furthermore proves
+that such proof graphs are just as powerful as natural deduction.
 
-All this happens with regard to an abstract set of formulas (Theory \isa{Abstract_Formula})and an abstract set of logic rules
-(Theory \isa{Abstract_Rules}) and can thus be instantiated with various logics.
+All this happens with regard to an abstract set of formulas (Theory
+\isa{Abstract_Formula})and an abstract set of logic rules (Theory
+\isa{Abstract_Rules}) and can thus be instantiated with various logics.
 
-This formalization covers the following aspects
+This formalization covers the following aspects:
 \begin{itemize}
 \item We formalize the definition of port graphs, proof graphs and the conditions for such a proof
       graph to be a valid graph (Theory \isa{Incredible_Deduction}).
@@ -95,9 +97,12 @@ given. It also does not cover the creation and use of custom blocks (which corre
 and use of lemmas in Isabelle).
 
 
-\subsection{Acknowledgements}
+\subsection*{Acknowledgements}
 
 We would like to thank Andreas Lochbihler for helpful comments.
+
+\bibliographystyle{amsalpha}
+\bibliography{root}
 
 \clearpage
 \newcommand{\theory}[1]{\subsection{#1}\label{sec\string_#1}\input{#1.tex}}
@@ -110,28 +115,29 @@ We would like to thank Andreas Lochbihler for helpful comments.
 \theory{Inits}
 \theory{Rose\string_Tree}
 
+\clearpage
 \section{Abstract formulas, rules and tasks}
 \theory{Abstract\string_Formula}
 \theory{Abstract\string_Rules}
 
+\clearpage
 \section{Incredible Proof Graphs}
 \theory{Incredible\string_Signatures}
 \theory{Incredible\string_Deduction}
 \theory{Abstract\string_Rules\string_To\string_Incredible}
 
+\clearpage
 \section{Natural Deduction}
 \theory{Natural\string_Deduction}
 
+\clearpage
 \section{Correctness}
 \theory{Incredible\string_Correctness}
 
+\clearpage
 \section{Completeness}
 \theory{Incredible\string_Trees}
 \theory{Build\string_Incredible\string_Tree}
 \theory{Incredible\string_Completeness}
-
-\clearpage
-\bibliographystyle{amsalpha}
-\bibliography{root}
 
 \end{document}
