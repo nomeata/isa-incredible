@@ -198,9 +198,7 @@ lemma iwf_edge_match:
   apply (rename_tac "is" i)
   apply (case_tac "is")
   apply (auto dest: list_all2_nthD2 intro: trans[OF iwf_subst_freshen_outPort[symmetric]])[1]
-  apply (auto elim!: it_paths_ConsE)
-  apply (drule(1) list_all2_nthD2)
-  apply auto
+  apply (auto elim!: it_paths_ConsE dest!: list_all2_nthD2)
   using it_path_SnocI
   apply blast
   done

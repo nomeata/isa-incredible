@@ -91,10 +91,7 @@ begin
   lemma hyps_for_Helper[simp]: "hyps_for Helper p = {||}"
     using hyps_for_subset by auto
   lemma hyps_for_Rule[simp]: "ip |\<in>| f_antecedent r \<Longrightarrow> hyps_for (Rule r) ip = (\<lambda> h. Hyp h ip) |`| a_hyps ip"
-    apply auto
-    apply (case_tac x)
-    apply (auto split: if_splits)
-    done
+    by (auto elim!: hyps.elims split: if_splits)
 end
 
 text \<open>Finally, a given proof graph solves the task at hand if all the given conclusions are present

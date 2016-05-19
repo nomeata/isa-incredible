@@ -15,7 +15,7 @@ lemma inits_eq_Snoc:
 by (cases "is" rule: rev_cases) auto
 
 lemma in_set_inits[simp]: "is' \<in> set (inits is) \<longleftrightarrow> prefixeq is' is"
-  by (induction "is'" arbitrary: "is"; case_tac "is"; auto)
+  by (induction "is'" arbitrary: "is"; rename_tac "is", case_tac "is"; auto)
 
 lemma prefixeq_snocD: "prefixeq (xs@[x]) ys \<Longrightarrow> prefix xs ys"
   by (simp add: prefixI' prefix_order.dual_order.strict_trans1)
