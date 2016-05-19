@@ -4,9 +4,12 @@ theory Incredible_Propositional imports
   Propositional_Formulas
 begin
 
+text \<open>Our concrete interpretation with propositional logic will cover conjunction and implication
+  as well as constant symbols. The type for variables will be @{typ string}.\<close>
 
 datatype prop_funs = "and" | imp | Const "string"
 
+text \<open>The rules are introduction and elimination of conjunction and implication.\<close>
 datatype prop_rule = andI | andE | impI | impE
 
 definition prop_rules :: "prop_rule stream"
@@ -30,10 +33,13 @@ qed
 lemma iR_prop_rules [simp]: "i.R prop_rules = {andI, andE, impI, impE}"
   unfolding prop_rules_def by simp
 
+text \<open>Just some short notation.\<close>
 abbreviation X :: "(string,'a) pform"
   where "X \<equiv> Var ''X''"
 abbreviation Y :: "(string,'a) pform"
   where "Y \<equiv> Var ''Y''"
+
+text \<open>Finally the right- and left-hand sides of the rules.\<close>
 
 fun consequent :: "prop_rule \<Rightarrow> (string, prop_funs) pform list"
   where "consequent andI = [Fun and [X, Y]]"
@@ -42,10 +48,10 @@ fun consequent :: "prop_rule \<Rightarrow> (string, prop_funs) pform list"
   | "consequent impE = [Y]"
 
 fun antecedent :: "prop_rule \<Rightarrow> ((string,prop_funs) pform,string) antecedent list"
-  where "antecedent andI = [Antecedent {||} X {}, Antecedent {||} Y {}]"
-  | "antecedent andE = [Antecedent {||} (Fun and [X, Y]) {}]"
+  where "antecedent andI = [plain_ant X, plain_ant Y]"
+  | "antecedent andE = [plain_ant (Fun and [X, Y])]"
   | "antecedent impI = [Antecedent {|X|} Y {}]"
-  | "antecedent impE = [Antecedent {||} (Fun imp [X, Y]) {}, Antecedent {||} X {}]"
+  | "antecedent impE = [plain_ant (Fun imp [X, Y]), plain_ant X]"
 
 
 interpretation propositional: Abstract_Rules

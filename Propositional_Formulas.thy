@@ -15,21 +15,8 @@ instance prod :: (infinite, type) infinite
 instance list :: (type) infinite
   by intro_classes (simp add: infinite_UNIV_listI)
 
-datatype ('var,'cname) pform =
-    Var "'var::{countable,infinite}"
-  | Fun (name:'cname) (params: "('var,'cname) pform list")
-
-fun subst :: "('var::{countable,infinite} \<Rightarrow> ('var,'cname) pform) \<Rightarrow> ('var,'cname) pform \<Rightarrow> ('var,'cname) pform"
-  where "subst s (Var v) = s v"
-  | "subst s (Fun n ps) = Fun n (map (subst s) ps)"
-
-fun closed :: "('var::{countable,infinite},'cname) pform \<Rightarrow> bool"
-  where "closed (Var v) \<longleftrightarrow> False"
-  | "closed (Fun n ps) \<longleftrightarrow> list_all closed ps"
-
 lemma countable_infinite_ex_bij: "\<exists>f::('a::{countable,infinite}\<Rightarrow>'b::{countable,infinite}). bij f"
 proof -
-  note [[show_consts, show_types]]
   have "infinite (range (to_nat::'a \<Rightarrow> nat))"
     using finite_imageD infinite_UNIV by blast
   moreover have "infinite (range (to_nat::'b \<Rightarrow> nat))"
@@ -64,14 +51,37 @@ proof -
 qed
   
 
+text \<open>Propositional formulas are either a variable from an infinite but countable set,
+  or a function given by a name and the arguments.\<close>
+
+datatype ('var,'cname) pform =
+    Var "'var::{countable,infinite}"
+  | Fun (name:'cname) (params: "('var,'cname) pform list")
+
+text \<open>Substitution on and closedness of propositional formulas is straight forward.\<close>
+
+fun subst :: "('var::{countable,infinite} \<Rightarrow> ('var,'cname) pform) \<Rightarrow> ('var,'cname) pform \<Rightarrow> ('var,'cname) pform"
+  where "subst s (Var v) = s v"
+  | "subst s (Fun n ps) = Fun n (map (subst s) ps)"
+
+fun closed :: "('var::{countable,infinite},'cname) pform \<Rightarrow> bool"
+  where "closed (Var v) \<longleftrightarrow> False"
+  | "closed (Fun n ps) \<longleftrightarrow> list_all closed ps"
+
+text \<open>Now we can interpret @{term Abstract_Formulas}.
+  As there are no locally fixed constants in propositional formulas, most of the locale parameters 
+  are dummy values\<close>
+
 interpretation propositional: Abstract_Formulas
+  \<comment> \<open>No need to freshen locally fixed constants\<close>
   "curry (SOME f. bij f):: nat \<Rightarrow> 'var \<Rightarrow> 'var"
-  "\<lambda>_. id"
-  "\<lambda>_. {}"
-  "closed :: ('var::{countable,infinite},'cname) pform \<Rightarrow> bool"
-  subst
-  "\<lambda>_. {}"
-  "\<lambda>_. id"
+  \<comment> \<open>also no renaming needed as there are no locally fixed constants\<close>
+  "\<lambda>_. id" "\<lambda>_. {}"
+  \<comment> \<open>closedness and substitution as defined above\<close>
+  "closed :: ('var::{countable,infinite},'cname) pform \<Rightarrow> bool" subst
+  \<comment> \<open>no substitution and renaming of locally fixed constants\<close>
+  "\<lambda>_. {}" "\<lambda>_. id"
+  \<comment> \<open>most generic formula\<close>
   "Var undefined"
 proof
   fix a v a' v'
@@ -95,6 +105,6 @@ next
     by (rule_tac x=Var in exI; clarsimp)
 qed auto
 
-declare Propositional_Formulas.propositional.subst_lconsts_empty_subst [simp del]
+declare propositional.subst_lconsts_empty_subst [simp del]
 
 end

@@ -3,10 +3,36 @@ imports Incredible_Propositional
   Incredible_Completeness
 begin
 
+context ND_Rules_Inst begin
+lemma eff_NatRuleI:
+  "nat_rule rule c ants
+    \<Longrightarrow> entail = (\<Gamma> \<turnstile> subst s (freshen a c))
+    \<Longrightarrow> hyps = ((\<lambda>ant. ((\<lambda>p. subst s (freshen a p)) |`| a_hyps ant |\<union>| \<Gamma> \<turnstile> subst s (freshen a (a_conc ant)))) |`| ants)
+    \<Longrightarrow> (\<And> ant f. ant |\<in>| ants \<Longrightarrow> f |\<in>| \<Gamma> \<Longrightarrow> freshenLC a ` (a_fresh ant) \<inter> lconsts f = {})
+    \<Longrightarrow> (\<And> ant. ant |\<in>| ants \<Longrightarrow> freshenLC a ` (a_fresh ant) \<inter> subst_lconsts s = {})
+    \<Longrightarrow> eff (NatRule rule) entail hyps"
+  by (drule eff.intros(2)) simp_all
+end
+
+context Abstract_Task begin
+lemma  natEff_InstI:
+  "rule = (r,c)
+  \<Longrightarrow> c \<in> set (consequent r)
+  \<Longrightarrow> antec = f_antecedent r
+  \<Longrightarrow> natEff_Inst rule c antec"
+  by (metis natEff_Inst.intros)
+end
+
+context begin
+
+subsubsection \<open>Task 1.1\<close>
+
+text \<open>This is the very first task of the Incredible Proof Machine: @{term "A \<longrightarrow> A"}\<close>
+
 abbreviation A :: "(string,prop_funs) pform"
   where "A \<equiv> Fun (Const ''A'') []"
 
-subsubsection \<open>Task 1.1\<close>
+text \<open>First the task is defined as an @{term Abstract_Task}.\<close>
 
 interpretation task1_1: Abstract_Task
   "curry (SOME f. bij f):: nat \<Rightarrow> string \<Rightarrow> string"
@@ -24,6 +50,9 @@ interpretation task1_1: Abstract_Task
   "[A]"
 by unfold_locales simp
 
+text \<open>Then we show, that this task has a proof within our formalization of natural deduction
+  by giving a concrete proof tree.\<close>
+
 lemma "task1_1.solved"
   unfolding task1_1.solved_def
 apply clarsimp
@@ -40,11 +69,12 @@ apply (rule conjI)
  apply clarsimp
 by (auto intro: tfinite.intros)
 
-print_locale Vertex_Graph
 
+print_locale Vertex_Graph
 interpretation task1_1: Vertex_Graph task1_1.nodes task1_1.inPorts task1_1.outPorts "{|0::nat,1|}"
   "undefined(0 := Assumption A, 1 := Conclusion A)"
 .
+
 print_locale Pre_Port_Graph
 interpretation task1_1: Pre_Port_Graph task1_1.nodes task1_1.inPorts task1_1.outPorts "{|0::nat,1|}"
   "undefined(0 := Assumption A, 1 := Conclusion A)"
@@ -85,6 +115,8 @@ lemma path_one_edge[simp]:
   apply (rename_tac list, case_tac list, auto simp add: task1_1.path_cons_simp')+
   done
 
+text \<open>Finally we can also show that there is a proof graph for this task.\<close>
+
 interpretation Tasked_Proof_Graph
   "curry (SOME f. bij f):: nat \<Rightarrow> string \<Rightarrow> string"
   "\<lambda>_. id"
@@ -116,8 +148,9 @@ apply unfold_locales
 apply clarsimp
 done
 
-
 subsubsection \<open>Task 2.11\<close>
+
+text \<open>This is a slightly more interesting task as it involves both our connectives: @{term "P \<and> Q \<longrightarrow> R \<Longrightarrow> P \<longrightarrow> (Q \<longrightarrow> R)"}\<close>
 
 abbreviation B :: "(string,prop_funs) pform"
   where "B \<equiv> Fun (Const ''B'') []"
@@ -162,33 +195,17 @@ proof -
   finally show ?thesis .
 qed
 
-context ND_Rules_Inst begin
-lemma eff_NatRuleI:
-  "nat_rule rule c ants
-    \<Longrightarrow> entail = (\<Gamma> \<turnstile> subst s (freshen a c))
-    \<Longrightarrow> hyps = ((\<lambda>ant. ((\<lambda>p. subst s (freshen a p)) |`| a_hyps ant |\<union>| \<Gamma> \<turnstile> subst s (freshen a (a_conc ant)))) |`| ants)
-    \<Longrightarrow> (\<And> ant f. ant |\<in>| ants \<Longrightarrow> f |\<in>| \<Gamma> \<Longrightarrow> freshenLC a ` (a_fresh ant) \<inter> lconsts f = {})
-    \<Longrightarrow> (\<And> ant. ant |\<in>| ants \<Longrightarrow> freshenLC a ` (a_fresh ant) \<inter> subst_lconsts s = {})
-    \<Longrightarrow> eff (NatRule rule) entail hyps"
-  by (drule eff.intros(2)) simp_all
-end
-
-context Abstract_Task begin
-lemma  natEff_InstI:
-  "rule = (r,c)
-  \<Longrightarrow> c \<in> set (consequent r)
-  \<Longrightarrow> antec = f_antecedent r
-  \<Longrightarrow> natEff_Inst rule c antec"
-  by (metis natEff_Inst.intros)
-end
 
 lemma subst_Var_eq_id [simp]: "subst Var = id"
   by (rule ext) (induct_tac x; auto simp: map_idI)
 
-lemma xy_update [intro!]: "f = undefined(''X'' := x, ''Y'' := y) \<Longrightarrow> x = f ''X'' \<and> y = f ''Y''" by force
-lemma y_update [intro!]: "f = undefined(''Y'':=y) \<Longrightarrow> y = f ''Y''" by force
+lemma xy_update: "f = undefined(''X'' := x, ''Y'' := y) \<Longrightarrow> x = f ''X'' \<and> y = f ''Y''" by force
+lemma y_update: "f = undefined(''Y'':=y) \<Longrightarrow> y = f ''Y''" by force
 
 declare snth.simps(1) [simp del]
+
+text \<open>By interpreting @{term Solved_Task} we show that there is a proof tree for the task.
+  We get the existence of the proof graph for free by using the completeness theorem.\<close>
 
 interpretation task2_11: Solved_Task
   "curry (SOME f. bij f):: nat \<Rightarrow> string \<Rightarrow> string"
@@ -209,6 +226,7 @@ apply unfold_locales
 apply clarsimp
 apply (rule_tac x="{|Fun imp [Fun and [A,B],C]|}" in exI)
 apply clarsimp
+\<comment> \<open>The actual proof tree for this task.\<close>
 apply (rule_tac x="Node ({|Fun imp [Fun and [A, B], C]|} \<turnstile> Fun imp [A, Fun imp [B, C]],NatRule n_impI)
   {|Node ({|Fun imp [Fun and [A, B], C], A|} \<turnstile> Fun imp [B,C],NatRule n_impI)
     {|Node ({|Fun imp [Fun and [A, B], C], A, B|} \<turnstile> C,NatRule n_impE)
@@ -306,6 +324,8 @@ interpretation Tasked_Proof_Graph
   task2_11.edges
   task2_11.vidx
   task2_11.inst
-  by unfold_locales
+by unfold_locales
+
+end
 
 end
