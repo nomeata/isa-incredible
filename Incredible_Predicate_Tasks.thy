@@ -192,6 +192,11 @@ interpretation Well_Scoped_Graph
   task.hyps
 by standard (auto split: if_splits)
 
+lemma no_path_01[simp]: "task.path 0 v pth \<longleftrightarrow> (pth = [] \<and> v = 0)"
+  by (cases pth) (auto simp add: task.path_cons_simp)
+lemma no_path_12[simp]: "\<not> task.path 1 2 pth"
+  by (cases pth) (auto simp add: task.path_cons_simp)
+
 interpretation Acyclic_Graph
   task.nodes
   task.inPorts
@@ -202,9 +207,9 @@ interpretation Acyclic_Graph
   task.hyps
 proof
   fix v pth 
-  assume "task.path v v pth"
-  and "task.hyps_free pth"
-  show "pth = []" sorry
+  assume "task.path v v pth" and "task.hyps_free pth"
+  thus "pth = []"
+    by (cases pth) (auto simp add: task.path_cons_simp predicate.f_antecedent_def)
 qed
 
 interpretation Saturated_Graph
