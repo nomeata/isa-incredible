@@ -75,8 +75,6 @@ lemma subst1_simps[simp]:
   "subst s1 (ForallX (P x)) = ForallX (imp (Q x) (Q x))"
   by simp_all
 
-lemma fv_subst_Nil[simp]: "fv_subst [] = {}" sorry
-
 lemma subst2_simps[simp]:
     "subst s2 X = Q (LC lx)" 
     "subst s2 Y = Q (LC lx)"
@@ -182,13 +180,141 @@ interpretation task: Instantiation
   "inst"
 by unfold_locales simp
 
-lemma path_self_edge:
-  "task.path v v pth \<Longrightarrow> task.hyps_free path \<Longrightarrow> pth = []"
-  apply (cases pth)
-  apply (auto simp add: task.path_cons_simp')
-  sorry
-
 text \<open>Finally we can also show that there is a proof graph for this task.\<close>
+
+interpretation Well_Scoped_Graph
+  task.nodes
+  task.inPorts
+  task.outPorts
+  vertices
+  nodeOf
+  task_edges
+  task.hyps
+apply standard
+sorry
+
+interpretation Acyclic_Graph
+  task.nodes
+  task.inPorts
+  task.outPorts
+  vertices
+  nodeOf
+  task_edges
+  task.hyps
+proof
+  fix v pth 
+  assume "task.path v v pth"
+  and "task.hyps_free pth"
+  show "pth = []" sorry
+qed
+
+interpretation Saturated_Graph
+  task.nodes
+  task.inPorts
+  task.outPorts
+  vertices
+  nodeOf
+  task_edges
+by standard
+   (auto simp add: predicate.f_consequent_def predicate.f_antecedent_def) 
+
+interpretation Pruned_Port_Graph
+  task.nodes
+  task.inPorts
+  task.outPorts
+  vertices
+  nodeOf
+  task_edges
+proof
+  fix v
+  assume "v |\<in>| vertices"
+  hence "\<exists> pth. task.path v 0 pth"
+    apply auto
+    sorry
+  moreover
+  have "task.terminal_vertex 0" by auto
+  ultimately
+  show "\<exists>pth v'. task.path v v' pth \<and> task.terminal_vertex v'" by blast
+qed
+
+interpretation Well_Shaped_Graph
+  task.nodes
+  task.inPorts
+  task.outPorts
+  vertices
+  nodeOf task_edges
+  task.hyps
+..
+
+interpretation Solution
+  task.inPorts
+  task.outPorts
+  nodeOf
+  task.hyps
+  task.nodes
+  vertices
+  task.labelsIn
+  task.labelsOut
+  "curry to_nat :: nat \<Rightarrow> var \<Rightarrow> var"
+  map_lc
+  lc
+  "closed"
+  subst
+  lc_subst
+  map_lc_subst
+  "Var 0 []"
+  id
+  inst
+  task_edges
+by standard
+   (auto simp add: task.labelAtOut_def task.labelAtIn_def predicate.freshen_def, subst antecedent.sel, simp)
+
+interpretation Proof_Graph
+  task.nodes
+  task.inPorts
+  task.outPorts
+  vertices
+  nodeOf
+  task_edges
+  task.hyps
+  task.labelsIn
+  task.labelsOut
+  "curry to_nat :: nat \<Rightarrow> var \<Rightarrow> var"
+  map_lc
+  lc
+  "closed"
+  subst
+  lc_subst
+  map_lc_subst
+  "Var 0 []"
+  id
+  inst
+..
+
+
+interpretation Scoped_Proof_Graph
+  "curry to_nat :: nat \<Rightarrow> var \<Rightarrow> var"
+  map_lc
+  lc
+  "closed"
+  subst
+  lc_subst
+  map_lc_subst
+  "Var 0 []"
+  task.inPorts
+  task.outPorts
+  nodeOf
+  task.hyps
+  task.nodes
+  vertices
+  task.labelsIn
+  task.labelsOut
+  id
+  inst
+  task_edges
+  task.local_vars
+apply standard
+sorry
 
 interpretation Tasked_Proof_Graph
   "curry to_nat :: nat \<Rightarrow> var \<Rightarrow> var"
@@ -207,18 +333,9 @@ interpretation Tasked_Proof_Graph
   vertices
   nodeOf
   task_edges
-  "id"
+  id
   inst
-apply unfold_locales
-      apply (auto simp add: predicate.f_consequent_def predicate.f_antecedent_def)[1]
-     apply (metis path_self_edge)
-    apply clarsimp
-    apply (auto simp add: predicate.f_consequent_def predicate.f_antecedent_def)[1]
-   defer
-  apply (auto  simp add: task.labelAtOut_def task.labelAtIn_def predicate.freshen_def,
-        subst antecedent.sel, simp)[1]
- apply clarsimp
-sorry
+by unfold_locales auto
 
 end
 
