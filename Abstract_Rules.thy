@@ -55,7 +55,7 @@ locale Abstract_Rules =
                  i' < length (antecedent r) \<Longrightarrow>
                  a_fresh (antecedent r ! i) \<inter> a_fresh (antecedent r ! i') = {} \<or> i = i'"
   assumes all_local_consts_listed:
-    "\<And> r p. r \<in> sset rules \<Longrightarrow> p \<in> set (antecent r) \<Longrightarrow>
+    "\<And> r p. r \<in> sset rules \<Longrightarrow> p \<in> set (antecedent r) \<Longrightarrow>
         lconsts (a_conc p) \<union> (\<Union>(lconsts ` fset (a_hyps p))) \<subseteq> a_fresh p "
 begin
   definition f_antecedent :: "'rule \<Rightarrow> ('form, 'var) antecedent fset"

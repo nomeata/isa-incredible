@@ -231,7 +231,7 @@ lemma map_lc_subst[simp]: "map_lc p (subst s f) = subst (map_lc_subst p s) (map_
 fun closed :: "form \<Rightarrow> bool" where
   "closed f \<longleftrightarrow> fv f = {} \<and> lc f = {}"
 
-interpretation propositional: Abstract_Formulas
+interpretation predicate: Abstract_Formulas
   "curry to_nat :: nat \<Rightarrow> var \<Rightarrow> var"
   map_lc
   lc
@@ -257,6 +257,6 @@ interpretation propositional: Abstract_Formulas
   apply (rename_tac f, rule_tac x = "[(0, ([],f))]" in exI, simp)
   done
 
-declare propositional.subst_lconsts_empty_subst [simp del]
+declare predicate.subst_lconsts_empty_subst [simp del]
 
 end
