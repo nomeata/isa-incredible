@@ -36,11 +36,13 @@ abbreviation X :: "form"
 abbreviation Y :: "form"
   where "Y \<equiv> Var 11 []"
 abbreviation x :: "form"
-  where "x \<equiv> Var 12 []"
+  where "x \<equiv> Var 9 []"
 abbreviation t :: "form"
   where "t \<equiv> Var 13 []"
 abbreviation P :: "form \<Rightarrow> form"
   where "P f \<equiv> Var 12 [f]"
+abbreviation Q :: "form \<Rightarrow> form"
+  where "Q f \<equiv> Op ''Q'' [f]"
 abbreviation imp :: "form \<Rightarrow> form \<Rightarrow> form"
   where "imp f1 f2 \<equiv> Op ''imp'' [f1, f2]"
 abbreviation ForallX :: "form \<Rightarrow> form"
@@ -54,13 +56,16 @@ fun consequent :: "prop_rule \<Rightarrow> form list"
   | "consequent impI = [imp X Y]"
   | "consequent impE = [Y]"
 
+abbreviation allI_input where "allI_input \<equiv> Antecedent {||} (P (LC 0)) {0}"
+abbreviation impI_input where "impI_input \<equiv> Antecedent {|X|} Y {}"
+
 fun antecedent :: "prop_rule \<Rightarrow> (form, lconst) antecedent list"
-  where "antecedent allI = [Antecedent {||} (P (LC 0)) {0}]"
+  where "antecedent allI = [allI_input]"
   | "antecedent allE = [plain_ant (ForallX (P x))]"
-  | "antecedent impI = [Antecedent {|X|} Y {}]"
+  | "antecedent impI = [impI_input]"
   | "antecedent impE = [plain_ant (imp X Y), plain_ant X]"
 
-interpretation propositional: Abstract_Rules
+interpretation predicate: Abstract_Rules
   "curry to_nat :: nat \<Rightarrow> var \<Rightarrow> var"
   map_lc
   lc
