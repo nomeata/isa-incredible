@@ -67,6 +67,8 @@ begin
        c = subst s (freshen i anyP)
       \<rbrakk> \<Longrightarrow> iwf fc (HNode i s) (\<Gamma> \<turnstile> c)"  
 
+inductive_simps iwf_simp: "iwf fc (INode n p i s ants) (\<Gamma> \<turnstile> c)"  "iwf fc (HNode i s) (\<Gamma> \<turnstile> c)"
+
 lemma iwf_subst_freshen_outPort:
   "iwf lc ts ent \<Longrightarrow>
   snd ent = subst (iSubst ts) (freshen (iAnnot ts) (iOutPort ts))"
@@ -108,6 +110,8 @@ inductive it_pathsP :: "('form,'rule,'subst,'var) itree \<Rightarrow> nat list \
 
 inductive_cases it_pathP_ConsE: "it_pathsP t (i#is)"
 
+inductive_cases it_pathP_NodeE: "it_pathsP (INode n p a s ants) is" "it_pathsP (HNode a s) is"
+
 definition it_paths:: "('form,'rule,'subst,'var) itree \<Rightarrow> nat list set"  where
   "it_paths t = Collect (it_pathsP t)"
 
@@ -118,6 +122,7 @@ definition it_paths:: "('form,'rule,'subst,'var) itree \<Rightarrow> nat list se
  lemmas it_paths_induct [consumes 1, induct set: it_paths] = it_pathsP.induct[to_set]
  lemmas it_paths_cases [consumes 1, cases set: it_paths] = it_pathsP.cases[to_set]
  lemmas it_paths_ConsE = it_pathP_ConsE[to_set]
+ lemmas it_paths_NodeE = it_pathP_NodeE[to_set]
  lemmas it_paths_simps = it_pathsP.simps[to_set]
 
  lemma [simp]: "[] \<in> it_paths t" by (rule it_paths_intros)
@@ -180,11 +185,7 @@ lemma it_path_SnocI:
   assumes "i < length (iAnts (tree_at t is))"
   shows "is @ [i] \<in> it_paths t"
   using assms
-  apply (induction t arbitrary: "is" i)
-  apply auto
-  apply (case_tac "is")
-  apply (auto intro: it_paths_intros elim!: it_paths_ConsE)
-  done
+  by (induction t arbitrary: "is" i)(auto 4 4  elim!: it_paths_NodeE intro: it_paths_intros)
 
 lemma iwf_edge_match:
   assumes "iwf fc t ent"
@@ -193,7 +194,8 @@ lemma iwf_edge_match:
      = subst (iSubst (tree_at t is)) (freshen (iAnnot (tree_at t is)) (a_conc (inPorts' (iNodeOf (tree_at t is)) ! i)))"
   using assms
   apply (induction arbitrary: "is" i)
-  apply (auto elim!:  it_paths_SnocE)
+  apply (auto elim!: it_paths_SnocE)
+  apply (rename_tac "is" i)
   apply (case_tac "is")
   apply (auto dest: list_all2_nthD2 intro: trans[OF iwf_subst_freshen_outPort[symmetric]])[1]
   apply (auto elim!: it_paths_ConsE)
@@ -208,10 +210,8 @@ lemma iwf_length_inPorts:
   assumes "is \<in> it_paths t"
   shows "length (iAnts (tree_at t is)) \<le> length (inPorts' (iNodeOf (tree_at t is)))"
   using assms
-  apply (induction arbitrary: "is" rule: iwf.induct)
-  apply (case_tac "is")
-  apply (auto elim!: it_paths_ConsE dest: list_all2_lengthD list_all2_nthD2)
-  done
+  by (induction arbitrary: "is" rule: iwf.induct)
+     (auto elim!: it_paths_NodeE dest: list_all2_lengthD list_all2_nthD2)
 
 lemma iwf_local_not_in_subst:
   assumes "local_iwf t ent"
@@ -219,10 +219,8 @@ lemma iwf_local_not_in_subst:
   assumes "var \<in> all_local_vars (iNodeOf (tree_at t is))"
   shows "freshenLC (iAnnot (tree_at t is)) var \<notin> subst_lconsts (iSubst (tree_at t is))"
   using assms
-  apply (induction arbitrary: "is" rule: iwf.induct)
-  apply (case_tac "is")
-  apply (auto elim!: it_paths_ConsE dest: list_all2_lengthD list_all2_nthD2 elim!: local_fresh_check.cases)
-  done
+  by (induction arbitrary: "is" rule: iwf.induct)
+     (auto 4 4 elim!: it_paths_NodeE local_fresh_check.cases dest: list_all2_lengthD list_all2_nthD2)
   
 lemma iwf_length_inPorts_not_HNode:
   assumes "iwf fc t ent"
@@ -230,26 +228,26 @@ lemma iwf_length_inPorts_not_HNode:
   assumes "\<not> (isHNode (tree_at t is))"
   shows "length (iAnts (tree_at t is)) = length (inPorts' (iNodeOf (tree_at t is)))"
   using assms
-  apply (induction arbitrary: "is" rule: iwf.induct)
-  apply (case_tac "is")
-  apply (auto elim!: it_paths_ConsE dest: list_all2_lengthD list_all2_nthD2)
-  done
-
- 
+  by (induction arbitrary: "is" rule: iwf.induct)
+     (auto 4 4 elim!: it_paths_NodeE  dest: list_all2_lengthD list_all2_nthD2)
 
 lemma iNodeOf_outPorts:
   "iwf fc t ent \<Longrightarrow> is \<in> it_paths t \<Longrightarrow> outPorts (iNodeOf (tree_at t is)) = {||} \<Longrightarrow> False"
-  apply (induction arbitrary: "is" rule: iwf.induct)
-  apply (case_tac "is")
-  apply (auto elim!: it_paths_ConsE dest: list_all2_nthD2)
-  done
+  by (induction arbitrary: "is" rule: iwf.induct)
+     (auto 4 4 elim!: it_paths_NodeE  dest: list_all2_lengthD list_all2_nthD2)
 
 lemma iNodeOf_tree_at:
   "iwf fc t ent \<Longrightarrow> is \<in> it_paths t \<Longrightarrow> iNodeOf (tree_at t is) \<in> sset nodes"
-  apply (induction arbitrary: "is" rule: iwf.induct)
-  apply (case_tac "is")
-  apply (auto elim!: it_paths_ConsE dest: list_all2_nthD2)
-  done
+  by (induction arbitrary: "is" rule: iwf.induct)
+     (auto 4 4 elim!: it_paths_NodeE  dest: list_all2_lengthD list_all2_nthD2)
+
+lemma iwf_outPort: 
+  assumes "iwf fc t ent"
+  assumes "is \<in> it_paths t"
+  shows "Reg (iOutPort (tree_at t is)) |\<in>| outPorts (iNodeOf (tree_at t is))"
+  using assms
+  by (induction arbitrary: "is" rule: iwf.induct)
+     (auto 4 4 elim!: it_paths_NodeE  dest: list_all2_lengthD list_all2_nthD2)
 
 inductive_set hyps_along for t "is" where
  "prefixeq (is'@[i]) is \<Longrightarrow>
@@ -450,16 +448,6 @@ lemma hyp_port_eq:
 using hyp_port_for_spec'[OF assms] unfolding hyp_port_path_for_def hyp_port_i_for_def hyp_port_h_for_def by auto
 
 
-lemma iwf_outPort: 
-  assumes "iwf fc t ent"
-  assumes "x \<in> it_paths t"
-  shows "Reg (iOutPort (tree_at t x)) |\<in>| outPorts (iNodeOf (tree_at t x))"
-using assms
-  apply (induction arbitrary: x rule: iwf.induct)
-  apply (case_tac x)
-  apply (auto elim!: it_paths_ConsE dest: list_all2_nthD2)
-  done
-
 definition isidx :: "nat list \<Rightarrow> nat" where "isidx xs = to_nat (Some xs)"
 definition v_away :: "nat" where "v_away = to_nat (None :: nat list option)"
 lemma isidx_inj[simp]: "isidx xs = isidx ys \<longleftrightarrow> xs = ys"
@@ -500,10 +488,7 @@ lemma iAnnot_globalize:
   assumes "is' \<in> it_paths (globalize is f t)"
   shows  "iAnnot (tree_at (globalize is f t) is') = isidx (is@is')"
   using assms
-  apply(induction t arbitrary: f "is" is')
-  apply (case_tac is')
-  apply (auto elim!: it_paths_ConsE)
-  done
+  by (induction t arbitrary: f "is" is') (auto elim!: it_paths_NodeE)
 
 lemma all_local_consts_listed':
   assumes "n \<in> sset nodes"
@@ -687,8 +672,8 @@ lemma globalize_local_consts:
     fresh_at_path (globalize is f t) is' \<union> range f"
   using assms
   apply (induction "is" f t  arbitrary: is' rule:globalize.induct)
-  apply (case_tac "is'")
-  apply (auto simp add: subst_lconsts_subst_renameLCs lconsts_renameLCs elim!: it_paths_ConsE  dest!: subsetD[OF  range_rerename])
+  apply (auto simp add: subst_lconsts_subst_renameLCs lconsts_renameLCs elim!: it_paths_NodeE  dest!: subsetD[OF range_rerename])
+  apply (rename_tac a list)
   apply (erule_tac x = "(ants ! a)" in meta_allE)
   apply (erule_tac x = "a" in meta_allE)
   apply (erule_tac x = "list" in meta_allE)
