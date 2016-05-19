@@ -4,6 +4,7 @@ imports
   "~~/src/HOL/Library/Countable"
   Entailment
   Inits
+  Rose_Tree
   Abstract_Rules_To_Incredible
 begin
 
@@ -12,13 +13,9 @@ as a (tree-shaped) incredible graph, but where the structure is still given by t
 and not by a set of edges etc.\<close>
 
 
-section {* Elaborated tree (annotation and substitution) *}
-
 text {*
 Tree-shape, but incredible-graph-like content (port names, explicit annotation and substitution)
 *}
-
-datatype 'a rose_tree = Node (root: 'a) (children:  "'a rose_tree list")
 
 datatype ('form,'rule,'subst,'var) itnode =
     I (iNodeOf': "('form, 'rule) graph_node")
@@ -46,7 +43,6 @@ end
 fun iAnnot where "iAnnot it = iAnnot' (root it)"
 fun iSubst where "iSubst it = iSubst' (root it)"
 fun iAnts where "iAnts it = children it"
-
 
 type_synonym ('form, 'rule, 'subst) fresh_check = "('form, 'rule) graph_node \<Rightarrow> nat \<Rightarrow> 'subst \<Rightarrow> 'form entailment \<Rightarrow> bool"
 
@@ -107,89 +103,10 @@ inductive no_fresh_check :: "('form, 'rule, 'subst) fresh_check" where
   "no_fresh_check n i s (\<Gamma> \<turnstile> c)"
 
 abbreviation "plain_iwf \<equiv> iwf no_fresh_check"
-  
-inductive it_pathsP :: "'a rose_tree \<Rightarrow> nat list \<Rightarrow> bool"  where
-   it_paths_Nil: "it_pathsP t []"
- | it_paths_Cons: "i < length (children t) \<Longrightarrow> children t ! i = t' \<Longrightarrow> it_pathsP t' is \<Longrightarrow> it_pathsP t (i#is)"
-
-inductive_cases it_pathP_ConsE: "it_pathsP t (i#is)"
-
-inductive_cases it_pathP_NodeE: "it_pathsP (Node r ants) is"
-
-definition it_paths:: "'a rose_tree \<Rightarrow> nat list set"  where
-  "it_paths t = Collect (it_pathsP t)"
-
- lemma it_paths_eq [pred_set_conv]: "it_pathsP t = (\<lambda>x. x \<in> it_paths t)"
-   by(simp add: it_paths_def)
-
- lemmas it_paths_intros [intro?] = it_pathsP.intros[to_set]
- lemmas it_paths_induct [consumes 1, induct set: it_paths] = it_pathsP.induct[to_set]
- lemmas it_paths_cases [consumes 1, cases set: it_paths] = it_pathsP.cases[to_set]
- lemmas it_paths_ConsE = it_pathP_ConsE[to_set]
- lemmas it_paths_NodeE = it_pathP_NodeE[to_set]
- lemmas it_paths_simps = it_pathsP.simps[to_set]
-
- lemma [simp]: "[] \<in> it_paths t" by (rule it_paths_intros)
-
-lemma it_paths_HNode[simp]: "it_paths (HNode i s []) = {[]}"
-  by (auto elim: it_paths_cases)
-
-lemma it_paths_Union: "it_paths t \<subseteq> insert [] (Union (((\<lambda> (i,t). (op # i) ` it_paths t) ` set (List.enumerate (0::nat) (iAnts t)))))"
-  apply (rule)
-  apply (erule it_paths_cases)
-  apply (auto intro!: bexI simp add: in_set_enumerate_eq)
-  done
-
-lemma finite_it_paths[simp]: "finite (it_paths t)"
-  by (induction t) (auto intro!:  finite_subset[OF it_paths_Union]  simp add: in_set_enumerate_eq)
-end
-
-fun tree_at :: "('form,'rule,'subst,'var) itree \<Rightarrow> nat list \<Rightarrow> ('form,'rule,'subst,'var) itree" where
-  "tree_at t [] = t"
-| "tree_at t (i#is) = tree_at (iAnts t ! i) is"
-
-context Abstract_Task
-begin
-lemma it_paths_SnocE[elim_format]:
-  assumes "is @ [i] \<in> it_paths t"
-  shows "is \<in> it_paths t \<and> i < length (iAnts (tree_at t is))"
-using assms
-by (induction "is" arbitrary: t)(auto intro!: it_paths_intros elim!: it_paths_ConsE)
 
 fun isHNode where
   "isHNode (HNode _ _ _ ) = True"
  |"isHNode _ = False"
-
-lemma it_paths_prefix:
-  assumes "is \<in> it_paths t"
-  assumes "prefix is' is"
-  shows "is' \<in> it_paths t"
-proof-
-  from assms(2)
-  obtain is'' where "is = is' @ is''" using prefixE' by blast
-  from assms(1)[unfolded this]
-  show ?thesis
-    by(induction is' arbitrary: t) (auto elim!: it_paths_ConsE intro!: it_paths_intros)
-qed
-
-lemma it_paths_prefixeq:
-  assumes "is \<in> it_paths t"
-  assumes "prefixeq is' is"
-  shows "is' \<in> it_paths t"
-using assms it_paths_prefix  prefixI by fastforce
-
-lemma it_paths_butlast:
-  assumes "is \<in> it_paths t"
-  shows "butlast is \<in> it_paths t"
-using assms prefixeq_butlast by (rule it_paths_prefixeq)
-
-lemma it_path_SnocI:
-  assumes "is \<in> it_paths t" 
-  assumes "i < length (children (tree_at t is))"
-  shows "is @ [i] \<in> it_paths t"
-  using assms
-  by (induction t arbitrary: "is" i)
-     (auto 4 4  elim!: it_paths_NodeE intro: it_paths_intros)
 
 lemma iwf_edge_match:
   assumes "iwf fc t ent"
