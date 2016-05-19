@@ -296,7 +296,15 @@ interpretation Proof_Graph
 lemma path_20:
   assumes "task.path 2 0 pth"
   shows "(1, allI_input) \<in> snd ` set pth"
-sorry
+proof-
+  { fix v
+    assume "task.path v 0 pth"
+    hence "v = 0 \<or> v = 1 \<or> (1, allI_input) \<in> snd ` set pth"
+    by (induction v "0::nat" pth rule: task.path.induct) auto
+  }
+  from this[OF assms]
+  show ?thesis by auto
+qed
 
 lemma scope_21: "2 \<in> task.scope (1, allI_input)"
   by (auto intro!: task.scope.intros elim: path_20 simp add: task.outPortsRule_def predicate.f_antecedent_def predicate.f_consequent_def)
