@@ -1,6 +1,6 @@
 chapter AFP
 
-session Incredible (AFP) = HOLCF +
+session Incredible (AFP) = HOL +
   description {* The meta theory of the Incredible Proof Machine *}
   theories [document = false]
     "~~/src/HOL/Library/FSet"
