@@ -229,7 +229,10 @@ proof
   assume "v |\<in>| vertices"
   hence "\<exists> pth. task.path v 0 pth"
     apply auto
-    sorry
+    apply (rule exI[where x = "[]"], auto)
+    apply (rule exI[where x = "[e1]"], auto simp add: task.path_cons_simp)
+    apply (rule exI[where x = "[e2,e1]"], auto simp add: task.path_cons_simp)
+    done
   moreover
   have "task.terminal_vertex 0" by auto
   ultimately
