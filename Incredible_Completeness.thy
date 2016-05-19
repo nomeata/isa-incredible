@@ -368,7 +368,7 @@ fun vidx :: "'form vertex \<Rightarrow> nat" where
    "vidx (c, [])   = isidx [fidx conc_forms c]"
   |"vidx (c, _#is) = iAnnot (tree_at (it' c) is)"
 
-lemma vidx_inj: "inj_on vidx (fset vertices)"
+lemma my_vidx_inj: "inj_on vidx (fset vertices)"
   by (rule inj_onI)
      (auto simp add:  mem_vertices[unfolded fmember.rep_eq] iAnnot_globalize simp del: iAnnot.simps)
 
@@ -377,7 +377,7 @@ lemma vidx_not_v_away[simp]: "v |\<in>| vertices \<Longrightarrow> vidx v \<note
 
 sublocale Instantiation inPorts outPorts nodeOf hyps  nodes edges vertices labelsIn labelsOut freshenLC renameLCs lconsts closed subst subst_lconsts subst_renameLCs anyP vidx inst
 proof
-  show "inj_on vidx (fset vertices)" by (rule vidx_inj)
+  show "inj_on vidx (fset vertices)" by (rule my_vidx_inj)
 qed
 
 sublocale  Well_Scoped_Graph nodes inPorts outPorts vertices nodeOf edges hyps
@@ -502,7 +502,7 @@ qed
 
 sublocale Well_Shaped_Graph  nodes inPorts outPorts vertices nodeOf edges hyps..
 
-sublocale Solution inPorts outPorts nodeOf hyps nodes vertices  labelsIn labelsOut freshenLC renameLCs lconsts closed subst subst_lconsts subst_renameLCs anyP vidx inst edges
+sublocale sol:Solution inPorts outPorts nodeOf hyps nodes vertices  labelsIn labelsOut freshenLC renameLCs lconsts closed subst subst_lconsts subst_renameLCs anyP vidx inst edges
 proof
   fix v\<^sub>1 p\<^sub>1 v\<^sub>2 p\<^sub>2
   assume "((v\<^sub>1, p\<^sub>1), (v\<^sub>2, p\<^sub>2)) \<in> edges"
