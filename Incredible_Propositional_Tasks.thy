@@ -1,5 +1,6 @@
 theory Incredible_Propositional_Tasks
 imports Incredible_Propositional
+  Incredible_Completeness
 begin
 
 abbreviation A :: "(string,prop_funs) pform"
@@ -115,5 +116,196 @@ apply unfold_locales
 apply clarsimp
 done
 
+
+subsubsection \<open>Task 2.11\<close>
+
+abbreviation B :: "(string,prop_funs) pform"
+  where "B \<equiv> Fun (Const ''B'') []"
+abbreviation C :: "(string,prop_funs) pform"
+  where "C \<equiv> Fun (Const ''C'') []"
+
+interpretation task2_11: Abstract_Task
+  "curry (SOME f. bij f):: nat \<Rightarrow> string \<Rightarrow> string"
+  "\<lambda>_. id"
+  "\<lambda>_. {}"
+  "closed :: (string, prop_funs) pform \<Rightarrow> bool"
+  subst
+  "\<lambda>_. {}"
+  "\<lambda>_. id"
+  "Var undefined"
+  antecedent
+  consequent
+  prop_rules
+  "[Fun imp [Fun and [A,B],C]]"
+  "[Fun imp [A,Fun imp [B,C]]]"
+by unfold_locales simp_all
+
+abbreviation "n_andI \<equiv> task2_11.n_rules !! 0"
+abbreviation "n_andE1 \<equiv> task2_11.n_rules !! 1"
+abbreviation "n_andE2 \<equiv> task2_11.n_rules !! 2"
+abbreviation "n_impI \<equiv> task2_11.n_rules !! 3"
+abbreviation "n_impE \<equiv> task2_11.n_rules !! 4"
+
+lemma n_andI [simp]: "n_andI = (andI, Fun and [X,Y])"
+  unfolding task2_11.n_rules_def by (simp add: prop_rules_def)
+lemma n_andE1 [simp]: "n_andE1 = (andE, X)"
+  unfolding task2_11.n_rules_def One_nat_def by (simp add: prop_rules_def)
+lemma n_andE2 [simp]: "n_andE2 = (andE, Y)"
+  unfolding task2_11.n_rules_def numeral_2_eq_2 by (simp add: prop_rules_def)
+lemma n_impI [simp]: "n_impI = (impI, Fun imp [X,Y])"
+  unfolding task2_11.n_rules_def numeral_3_eq_3 by (simp add: prop_rules_def)
+lemma n_impE [simp]: "n_impE = (impE, Y)"
+proof -
+  have "n_impE = task2_11.n_rules !! Suc 3" by simp
+  also have "... = (impE, Y)"
+  unfolding task2_11.n_rules_def numeral_3_eq_3 by (simp add: prop_rules_def)
+  finally show ?thesis .
+qed
+
+context ND_Rules_Inst begin
+lemma eff_NatRuleI:
+  "nat_rule rule c ants
+    \<Longrightarrow> entail = (\<Gamma> \<turnstile> subst s (freshen a c))
+    \<Longrightarrow> hyps = ((\<lambda>ant. ((\<lambda>p. subst s (freshen a p)) |`| a_hyps ant |\<union>| \<Gamma> \<turnstile> subst s (freshen a (a_conc ant)))) |`| ants)
+    \<Longrightarrow> (\<And> ant f. ant |\<in>| ants \<Longrightarrow> f |\<in>| \<Gamma> \<Longrightarrow> freshenLC a ` (a_fresh ant) \<inter> lconsts f = {})
+    \<Longrightarrow> (\<And> ant. ant |\<in>| ants \<Longrightarrow> freshenLC a ` (a_fresh ant) \<inter> subst_lconsts s = {})
+    \<Longrightarrow> eff (NatRule rule) entail hyps"
+  by (drule eff.intros(2)) simp_all
+end
+
+context Abstract_Task begin
+lemma  natEff_InstI:
+  "rule = (r,c)
+  \<Longrightarrow> c \<in> set (consequent r)
+  \<Longrightarrow> antec = f_antecedent r
+  \<Longrightarrow> natEff_Inst rule c antec"
+  by (metis natEff_Inst.intros)
+end
+
+lemma subst_Var_eq_id [simp]: "subst Var = id"
+  by (rule ext) (induct_tac x; auto simp: map_idI)
+
+lemma xy_update [intro!]: "f = undefined(''X'' := x, ''Y'' := y) \<Longrightarrow> x = f ''X'' \<and> y = f ''Y''" by force
+lemma y_update [intro!]: "f = undefined(''Y'':=y) \<Longrightarrow> y = f ''Y''" by force
+
+declare snth.simps(1) [simp del]
+
+interpretation task2_11: Solved_Task
+  "curry (SOME f. bij f):: nat \<Rightarrow> string \<Rightarrow> string"
+  "\<lambda>_. id"
+  "\<lambda>_. {}"
+  "closed :: (string, prop_funs) pform \<Rightarrow> bool"
+  subst
+  "\<lambda>_. {}"
+  "\<lambda>_. id"
+  "Var undefined"
+  antecedent
+  consequent
+  prop_rules
+  "[Fun imp [Fun and [A,B],C]]"
+  "[Fun imp [A,Fun imp [B,C]]]"
+apply unfold_locales
+  unfolding task2_11.solved_def
+apply clarsimp
+apply (rule_tac x="{|Fun imp [Fun and [A,B],C]|}" in exI)
+apply clarsimp
+apply (rule_tac x="Node ({|Fun imp [Fun and [A, B], C]|} \<turnstile> Fun imp [A, Fun imp [B, C]],NatRule n_impI)
+  {|Node ({|Fun imp [Fun and [A, B], C], A|} \<turnstile> Fun imp [B,C],NatRule n_impI)
+    {|Node ({|Fun imp [Fun and [A, B], C], A, B|} \<turnstile> C,NatRule n_impE)
+      {|Node ({|Fun imp [Fun and [A, B], C], A, B|} \<turnstile> Fun imp [Fun and [A,B], C],Axiom) {||},
+        Node ({|Fun imp [Fun and [A, B], C], A, B|} \<turnstile> Fun and [A,B],NatRule n_andI) 
+          {|Node ({|Fun imp [Fun and [A, B], C], A, B|} \<turnstile> A,Axiom) {||},
+            Node ({|Fun imp [Fun and [A, B], C], A, B|} \<turnstile> B,Axiom) {||}
+          |}
+      |}
+    |}
+  |}" in exI)
+apply clarsimp
+apply (rule conjI)
+
+ apply (rule task1_1.wf)
+   apply clarsimp
+   apply (metis n_impI snth_smap snth_sset)
+  apply clarsimp
+  apply (rule task1_1.eff_NatRuleI [unfolded propositional.freshen_def, simplified]) apply simp_all[4]
+    apply (rule task2_11.natEff_InstI)
+      apply simp
+     apply simp
+    apply simp
+   apply (intro conjI; simp; rule xy_update)
+   apply simp
+  apply (auto simp: propositional.f_antecedent_def)[1]
+ apply clarsimp
+
+ apply (rule task1_1.wf)
+   apply clarsimp
+   apply (metis n_impI snth_smap snth_sset)
+  apply clarsimp
+  apply (rule task1_1.eff_NatRuleI [unfolded propositional.freshen_def, simplified]) apply simp_all[4]
+    apply (rule task2_11.natEff_InstI)
+      apply simp
+     apply simp
+    apply simp
+   apply (intro conjI; simp; rule xy_update)
+   apply simp
+  apply (auto simp: propositional.f_antecedent_def)[1]
+ apply clarsimp
+
+ apply (rule task1_1.wf)
+   apply clarsimp
+   apply (metis n_impE snth_smap snth_sset)
+  apply clarsimp
+  apply (rule task1_1.eff_NatRuleI [unfolded propositional.freshen_def, simplified, where s="undefined(''Y'':=C,''X'':=Fun and [A,B])"]) apply simp_all[4]
+    apply (rule task2_11.natEff_InstI)
+      apply simp
+     apply simp
+    apply simp
+   apply (intro conjI; simp)
+  apply (simp add: propositional.f_antecedent_def)
+ apply (erule disjE)
+
+  apply (auto intro: task1_1.wf intro!: task1_1.eff.intros(1))[1]
+
+ apply (rule task1_1.wf)
+   apply clarsimp
+   apply (metis n_andI snth_smap snth_sset)
+  apply clarsimp
+  apply (rule task1_1.eff_NatRuleI [unfolded propositional.freshen_def, simplified]) apply simp_all[4]
+    apply (rule task2_11.natEff_InstI)
+      apply simp
+     apply simp
+    apply simp
+   apply (intro conjI; simp; rule xy_update)
+   apply simp
+  apply (simp add: propositional.f_antecedent_def)
+ apply clarsimp
+
+ apply (erule disjE)
+  apply (rule task1_1.wf; auto intro: task1_1.eff.intros(1))
+ apply (rule task1_1.wf; auto intro: task1_1.eff.intros(1))
+  
+by (rule tfinite.intros; auto)+
+
+
+interpretation Tasked_Proof_Graph
+  "curry (SOME f. bij f):: nat \<Rightarrow> string \<Rightarrow> string"
+  "\<lambda>_. id"
+  "\<lambda>_. {}"
+  "closed :: (string, prop_funs) pform \<Rightarrow> bool"
+  subst
+  "\<lambda>_. {}"
+  "\<lambda>_. id"
+  "Var undefined"
+  antecedent
+  consequent
+  prop_rules
+  "[Fun imp [Fun and [A,B],C]]"
+  "[Fun imp [A,Fun imp [B,C]]]"
+  task2_11.vertices 
+  task2_11.nodeOf 
+  task2_11.edges
+  task2_11.vidx
+  task2_11.inst
+  by unfold_locales
 
 end
