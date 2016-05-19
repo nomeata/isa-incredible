@@ -5,7 +5,7 @@ theory Incredible_Propositional imports
 begin
 
 
-datatype prop_funs = "and" | imp | C "string"
+datatype prop_funs = "and" | imp | Const "string"
 
 datatype prop_rule = andI | andE | impI | impE
 
@@ -36,16 +36,16 @@ abbreviation Y :: "(string,'a) pform"
   where "Y \<equiv> Var ''Y''"
 
 fun consequent :: "prop_rule \<Rightarrow> (string, prop_funs) pform list"
-  where "consequent andI = [Const and [X, Y]]"
+  where "consequent andI = [Fun and [X, Y]]"
   | "consequent andE = [X, Y]"
-  | "consequent impI = [Const imp [X, Y]]"
+  | "consequent impI = [Fun imp [X, Y]]"
   | "consequent impE = [Y]"
 
 fun antecedent :: "prop_rule \<Rightarrow> ((string,prop_funs) pform,string) antecedent list"
   where "antecedent andI = [Antecedent {||} X {}, Antecedent {||} Y {}]"
-  | "antecedent andE = [Antecedent {||} (Const and [X, Y]) {}]"
+  | "antecedent andE = [Antecedent {||} (Fun and [X, Y]) {}]"
   | "antecedent impI = [Antecedent {|X|} Y {}]"
-  | "antecedent impE = [Antecedent {||} (Const imp [X, Y]) {}, Antecedent {||} X {}]"
+  | "antecedent impE = [Antecedent {||} (Fun imp [X, Y]) {}, Antecedent {||} X {}]"
 
 
 interpretation propositional: Abstract_Rules

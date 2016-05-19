@@ -17,15 +17,15 @@ instance list :: (type) infinite
 
 datatype ('var,'cname) pform =
     Var "'var::{countable,infinite}"
-  | Const (name:'cname) (params: "('var,'cname) pform list")
+  | Fun (name:'cname) (params: "('var,'cname) pform list")
 
 fun subst :: "('var::{countable,infinite} \<Rightarrow> ('var,'cname) pform) \<Rightarrow> ('var,'cname) pform \<Rightarrow> ('var,'cname) pform"
   where "subst s (Var v) = s v"
-  | "subst s (Const n ps) = Const n (map (subst s) ps)"
+  | "subst s (Fun n ps) = Fun n (map (subst s) ps)"
 
 fun closed :: "('var::{countable,infinite},'cname) pform \<Rightarrow> bool"
   where "closed (Var v) \<longleftrightarrow> False"
-  | "closed (Const n ps) \<longleftrightarrow> list_all closed ps"
+  | "closed (Fun n ps) \<longleftrightarrow> list_all closed ps"
 
 lemma countable_infinite_ex_bij: "\<exists>f::('a::{countable,infinite}\<Rightarrow>'b::{countable,infinite}). bij f"
 proof -
