@@ -18,29 +18,35 @@ text {*
 Tree-shape, but incredible-graph-like content (port names, explicit annotation and substitution)
 *}
 
-datatype ('form,'rule,'subst,'var)  itree =
-    INode (iNodeOf': "('form, 'rule) graph_node")
-          (iOutPort': "'form reg_out_port")
-          (iAnnot: "nat")
-          (iSubst: "'subst")
-          (iAnts': "('form,'rule,'subst,'var) itree list")
-  | HNode (iAnnot: "nat")
-          (iSubst: "'subst")
+datatype 'a rose_tree = Node (root: 'a) (children:  "'a rose_tree list")
 
-fun iAnts where
-   "iAnts (INode n p i s ants) = ants"
- | "iAnts (HNode i s) = []"
+datatype ('form,'rule,'subst,'var) itnode =
+    I (iNodeOf': "('form, 'rule) graph_node")
+      (iOutPort': "'form reg_out_port")
+      (iAnnot': "nat")
+      (iSubst': "'subst")
+  | H (iAnnot': "nat")
+      (iSubst': "'subst")
+
+abbreviation "INode n p i s ants \<equiv> Node (I n p i s) ants"
+abbreviation "HNode i s ants \<equiv> Node (H i s) ants"
+
+type_synonym ('form,'rule,'subst,'var) itree = "('form,'rule,'subst,'var) itnode rose_tree"
 
 fun iNodeOf where
    "iNodeOf (INode n p i s ants) = n"
- | "iNodeOf (HNode i s) = Helper"
+ | "iNodeOf (HNode i s ants) = Helper"
 
-context Abstract_Formulas
-begin
+context Abstract_Formulas begin
 fun iOutPort where
    "iOutPort (INode n p i s ants) = p"
- | "iOutPort (HNode i s) = anyP"
+ | "iOutPort (HNode i s ants) = anyP"
 end
+
+fun iAnnot where "iAnnot it = iAnnot' (root it)"
+fun iSubst where "iSubst it = iSubst' (root it)"
+fun iAnts where "iAnts it = children it"
+
 
 type_synonym ('form, 'rule, 'subst) fresh_check = "('form, 'rule) graph_node \<Rightarrow> nat \<Rightarrow> 'subst \<Rightarrow> 'form entailment \<Rightarrow> bool"
 
@@ -65,9 +71,7 @@ begin
        c |\<notin>| ass_forms;
        c |\<in>| \<Gamma>;
        c = subst s (freshen i anyP)
-      \<rbrakk> \<Longrightarrow> iwf fc (HNode i s) (\<Gamma> \<turnstile> c)"  
-
-inductive_simps iwf_simp: "iwf fc (INode n p i s ants) (\<Gamma> \<turnstile> c)"  "iwf fc (HNode i s) (\<Gamma> \<turnstile> c)"
+      \<rbrakk> \<Longrightarrow> iwf fc (HNode i s []) (\<Gamma> \<turnstile> c)"  
 
 lemma iwf_subst_freshen_outPort:
   "iwf lc ts ent \<Longrightarrow>
@@ -104,15 +108,15 @@ inductive no_fresh_check :: "('form, 'rule, 'subst) fresh_check" where
 
 abbreviation "plain_iwf \<equiv> iwf no_fresh_check"
   
-inductive it_pathsP :: "('form,'rule,'subst,'var) itree \<Rightarrow> nat list \<Rightarrow> bool"  where
+inductive it_pathsP :: "'a rose_tree \<Rightarrow> nat list \<Rightarrow> bool"  where
    it_paths_Nil: "it_pathsP t []"
- | it_paths_Cons: "i < length (iAnts t) \<Longrightarrow> iAnts t ! i = t' \<Longrightarrow> it_pathsP t' is \<Longrightarrow> it_pathsP t (i#is)"
+ | it_paths_Cons: "i < length (children t) \<Longrightarrow> children t ! i = t' \<Longrightarrow> it_pathsP t' is \<Longrightarrow> it_pathsP t (i#is)"
 
 inductive_cases it_pathP_ConsE: "it_pathsP t (i#is)"
 
-inductive_cases it_pathP_NodeE: "it_pathsP (INode n p a s ants) is" "it_pathsP (HNode a s) is"
+inductive_cases it_pathP_NodeE: "it_pathsP (Node r ants) is"
 
-definition it_paths:: "('form,'rule,'subst,'var) itree \<Rightarrow> nat list set"  where
+definition it_paths:: "'a rose_tree \<Rightarrow> nat list set"  where
   "it_paths t = Collect (it_pathsP t)"
 
  lemma it_paths_eq [pred_set_conv]: "it_pathsP t = (\<lambda>x. x \<in> it_paths t)"
@@ -127,7 +131,7 @@ definition it_paths:: "('form,'rule,'subst,'var) itree \<Rightarrow> nat list se
 
  lemma [simp]: "[] \<in> it_paths t" by (rule it_paths_intros)
 
-lemma it_paths_HNode[simp]: "it_paths (HNode i s) = {[]}"
+lemma it_paths_HNode[simp]: "it_paths (HNode i s []) = {[]}"
   by (auto elim: it_paths_cases)
 
 lemma it_paths_Union: "it_paths t \<subseteq> insert [] (Union (((\<lambda> (i,t). (op # i) ` it_paths t) ` set (List.enumerate (0::nat) (iAnts t)))))"
@@ -153,9 +157,8 @@ using assms
 by (induction "is" arbitrary: t)(auto intro!: it_paths_intros elim!: it_paths_ConsE)
 
 fun isHNode where
-  "isHNode (HNode _ _) = True"
+  "isHNode (HNode _ _ _ ) = True"
  |"isHNode _ = False"
-
 
 lemma it_paths_prefix:
   assumes "is \<in> it_paths t"
@@ -182,10 +185,11 @@ using assms prefixeq_butlast by (rule it_paths_prefixeq)
 
 lemma it_path_SnocI:
   assumes "is \<in> it_paths t" 
-  assumes "i < length (iAnts (tree_at t is))"
+  assumes "i < length (children (tree_at t is))"
   shows "is @ [i] \<in> it_paths t"
   using assms
-  by (induction t arbitrary: "is" i)(auto 4 4  elim!: it_paths_NodeE intro: it_paths_intros)
+  by (induction t arbitrary: "is" i)
+     (auto 4 4  elim!: it_paths_NodeE intro: it_paths_intros)
 
 lemma iwf_edge_match:
   assumes "iwf fc t ent"
@@ -194,10 +198,12 @@ lemma iwf_edge_match:
      = subst (iSubst (tree_at t is)) (freshen (iAnnot (tree_at t is)) (a_conc (inPorts' (iNodeOf (tree_at t is)) ! i)))"
   using assms
   apply (induction arbitrary: "is" i)
-  apply (auto elim!: it_paths_SnocE)
+   apply (auto elim!: it_paths_SnocE)
   apply (rename_tac "is" i)
   apply (case_tac "is")
-  apply (auto dest: list_all2_nthD2 intro: trans[OF iwf_subst_freshen_outPort[symmetric]])[1]
+   apply (auto dest!: list_all2_nthD2)[1]
+   using iwf_subst_freshen_outPort
+   apply auto[1]
   apply (auto elim!: it_paths_ConsE dest!: list_all2_nthD2)
   using it_path_SnocI
   apply blast
@@ -333,15 +339,15 @@ proof-
 qed
 
 lemma iwf_hyps_exist:
-  assumes "iwf lc it (fst (root ts))"
+  assumes "iwf lc it ent"
   assumes "is \<in> it_paths it"
-  assumes "tree_at it is = (HNode i s)"
-  assumes "fst (fst (root ts)) |\<subseteq>| ass_forms"
+  assumes "tree_at it is = (HNode i s ants')"
+  assumes "fst ent |\<subseteq>| ass_forms"
   shows "subst s (freshen i anyP) \<in> hyps_along it is"
 proof-
   from assms(1,2,3)
   have "subst s (freshen i anyP) \<in> hyps_along it is 
-     \<or> subst s (freshen i anyP) |\<in>| fst (fst (root ts))
+     \<or> subst s (freshen i anyP) |\<in>| fst ent
        \<and> subst s (freshen i anyP) |\<notin>| ass_forms"
   proof(induction arbitrary: "is" rule: iwf.induct)
     case (iwf n p  s' a' \<Gamma> ants c "is")
@@ -353,7 +359,7 @@ proof-
     show ?case
     proof(cases "is")
       case Nil
-      with `tree_at (INode n p a' s' ants) is = HNode i s`
+      with `tree_at (INode n p a' s' ants) is = HNode i s ants'`
       show ?thesis by auto
     next
       case (Cons i' "is'")
@@ -363,8 +369,8 @@ proof-
 
       let ?\<Gamma>' = "(\<lambda>h. subst s' (freshen a' (labelsOut n h))) |`| hyps_for n (inPorts' n ! i')"
 
-      from `tree_at (INode n p a' s' ants) is = HNode i s`
-      have "tree_at (ants ! i') is' = HNode i s" using Cons by simp
+      from `tree_at (INode n p a' s' ants) is = HNode i s ants'`
+      have "tree_at (ants ! i') is' = HNode i s ants'" using Cons by simp
 
       from  iwf.IH `i' < length ants`  `is' \<in> it_paths (ants ! i')` this
       have  "subst s (freshen i anyP) \<in> hyps_along (ants ! i') is'
@@ -459,6 +465,9 @@ lemma mapWithIndex_cong [fundef_cong]:
   "xs = ys \<Longrightarrow> (\<And>x i. x \<in> set ys \<Longrightarrow> f i x = g i x) \<Longrightarrow> mapWithIndex f xs = mapWithIndex g ys"
 unfolding mapWithIndex_def by (auto simp add: in_set_enumerate_eq)
 
+lemma mapWithIndex_Nil[simp]: "mapWithIndex f [] = []"
+  unfolding mapWithIndex_def by simp
+
 lemma length_mapWithIndex[simp]: "length (mapWithIndex f xs) = length xs"
   unfolding mapWithIndex_def by simp
 
@@ -476,11 +485,22 @@ text \<open>The globalize function, which renames all local constants so that th
 local constants occurring anywhere else in the tree.\<close>
 
 
+fun globalize_node :: "nat list \<Rightarrow> ('var \<Rightarrow> 'var) \<Rightarrow> ('form,'rule,'subst,'var) itnode \<Rightarrow>  ('form,'rule,'subst,'var) itnode"  where
+  "globalize_node is f (I n p i s) =  I n p (isidx is) (subst_renameLCs f s)"
+  | "globalize_node is f (H i s) = H (isidx is) (subst_renameLCs f s)"
+
 fun globalize :: "nat list \<Rightarrow> ('var \<Rightarrow> 'var) \<Rightarrow> ('form,'rule,'subst,'var) itree \<Rightarrow> ('form,'rule,'subst,'var) itree" where
-  "globalize is f (INode n p i s ants) =
-     INode n p (isidx is) (subst_renameLCs f s)
-      (mapWithIndex (\<lambda> i' t. globalize (is@[i']) (rerename (a_fresh (inPorts' n ! i')) i (isidx is) f) t) ants)"
-  | "globalize is f (HNode i s) = (HNode (isidx is) (subst_renameLCs f s))"
+  "globalize is f (Node r ants) = Node 
+    (globalize_node is f r)
+    (mapWithIndex (\<lambda> i' t.
+      globalize (is@[i'])
+                (rerename (a_fresh (inPorts' (iNodeOf (Node r ants)) ! i'))
+                          (iAnnot (Node r ants)) (isidx is) f)
+                t
+      ) ants)"
+
+lemma iAnnot'_globalize_node[simp]: "iAnnot' (globalize_node is f n) = isidx is"
+  by (cases n) auto
 
 lemma iAnnot_globalize:
   assumes "is' \<in> it_paths (globalize is f t)"
@@ -606,7 +626,7 @@ proof (induction t "\<Gamma> \<turnstile> c" arbitrary: "is" f \<Gamma> c rule: 
     by (simp add: rename_subst rename_closed freshen_closed)
   ultimately
   show ?case
-    unfolding globalize.simps Let_def 
+    unfolding globalize.simps globalize_node.simps iNodeOf.simps iAnnot.simps itnode.sel rose_tree.sel  Let_def 
     by (rule iwf.intros(1))
 next
   case (iwfH c \<Gamma> s i "is" f)
@@ -621,8 +641,8 @@ next
   have "renameLCs f c = subst (subst_renameLCs f s)  (freshen (isidx is) anyP)"
     by (metis freshen_closed lconsts_anyP rename_closed rename_subst)
   ultimately 
-  show "plain_iwf (globalize is f (HNode i s)) (renameLCs f |`| \<Gamma> \<turnstile> renameLCs f c)" 
-    unfolding globalize.simps Let_def 
+  show "plain_iwf (globalize is f (HNode i s [])) (renameLCs f |`| \<Gamma> \<turnstile> renameLCs f c)" 
+    unfolding globalize.simps globalize_node.simps  mapWithIndex_Nil  Let_def 
     by (rule iwf.intros(2))
 qed
 
@@ -670,7 +690,14 @@ lemma globalize_local_consts:
     fresh_at_path (globalize is f t) is' \<union> range f"
   using assms
   apply (induction "is" f t  arbitrary: is' rule:globalize.induct)
+  apply (rename_tac "is" f r ants is')
+  apply (case_tac r)
   apply (auto simp add: subst_lconsts_subst_renameLCs lconsts_renameLCs elim!: it_paths_NodeE  dest!: subsetD[OF range_rerename])
+   apply (rename_tac a list)
+   apply (erule_tac x = "(ants ! a)" in meta_allE)
+   apply (erule_tac x = "a" in meta_allE)
+   apply (erule_tac x = "list" in meta_allE)
+   apply (auto  dest!: subsetD[OF  range_rerename])
   apply (rename_tac a list)
   apply (erule_tac x = "(ants ! a)" in meta_allE)
   apply (erule_tac x = "a" in meta_allE)

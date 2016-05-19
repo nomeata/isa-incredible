@@ -131,7 +131,7 @@ lemma snd_edge_at[simp]: "snd (edge_at c is) = edge_to c is" by (simp add: edge_
 lemma hyps_exist':
   assumes "c \<in> set conclusions"
   assumes "is \<in> it_paths (it' c)"
-  assumes "tree_at (it' c) is = (HNode i s)"
+  assumes "tree_at (it' c) is = (HNode i s ants)"
   shows "subst s (freshen i anyP) \<in> hyps_along (it' c) is"
 proof-
   from assms(1)
@@ -144,7 +144,6 @@ proof-
   ultimately
   show ?thesis by (rule iwf_hyps_exist)
 qed
-
 
 
 definition hyp_edge_to :: "'form \<Rightarrow> nat list => ('form vertex \<times> ('form,'var) in_port)" where
@@ -166,7 +165,7 @@ lemma snd_hyp_edge_at[simp]:
 
 inductive_set edges where
   regular_edge: "c \<in> set conclusions \<Longrightarrow> is \<in> it_paths (it' c) \<Longrightarrow> edge_at c is \<in> edges"
-  | hyp_edge: "c \<in> set conclusions \<Longrightarrow> is \<in> it_paths (it' c) \<Longrightarrow> tree_at (it' c) is = HNode n s \<Longrightarrow> hyp_edge_at c is n s \<in> edges"
+  | hyp_edge: "c \<in> set conclusions \<Longrightarrow> is \<in> it_paths (it' c) \<Longrightarrow> tree_at (it' c) is = HNode n s ants \<Longrightarrow> hyp_edge_at c is n s \<in> edges"
 
 sublocale Pre_Port_Graph nodes inPorts outPorts vertices nodeOf edges.
 
@@ -191,7 +190,7 @@ lemma edge_to_valid_in_port:
 lemma hyp_edge_from_valid_out_port:
   assumes "is \<in> it_paths (it' c)"
   assumes "c \<in> set conclusions"
-  assumes "tree_at (it' c) is = HNode n s"
+  assumes "tree_at (it' c) is = HNode n s ants"
   shows "valid_out_port (hyp_edge_from c is n s)"
 using assms
 by(auto simp add: hyp_edge_from_def intro: hyp_port_outPort it_paths_prefix hyp_port_prefix  hyps_exist')
@@ -199,7 +198,7 @@ by(auto simp add: hyp_edge_from_def intro: hyp_port_outPort it_paths_prefix hyp_
 lemma hyp_edge_to_valid_in_port:
   assumes "is \<in> it_paths (it' c)"
   assumes "c \<in> set conclusions"
-  assumes "tree_at (it' c) is = HNode n s"
+  assumes "tree_at (it' c) is = HNode n s ants"
   shows "valid_in_port (hyp_edge_to c is)"
 using assms by (auto simp add: hyp_edge_to_def)
 
@@ -370,11 +369,11 @@ fun vidx :: "'form vertex \<Rightarrow> nat" where
   |"vidx (c, _#is) = iAnnot (tree_at (it' c) is)"
 
 lemma vidx_inj: "inj_on vidx (fset vertices)"
-  by(rule inj_onI)
-    (auto simp add:  mem_vertices[unfolded fmember.rep_eq] iAnnot_globalize)
+  by (rule inj_onI)
+     (auto simp add:  mem_vertices[unfolded fmember.rep_eq] iAnnot_globalize simp del: iAnnot.simps)
 
 lemma vidx_not_v_away[simp]: "v |\<in>| vertices \<Longrightarrow> vidx v \<noteq> v_away"
-  by (cases v rule:vidx.cases) (auto simp add: iAnnot_globalize)
+  by (cases v rule:vidx.cases) (auto simp add: iAnnot_globalize  simp del: iAnnot.simps)
 
 sublocale Instantiation inPorts outPorts nodeOf hyps  nodes edges vertices labelsIn labelsOut freshenLC renameLCs lconsts closed subst subst_lconsts subst_renameLCs anyP vidx inst
 proof
@@ -444,34 +443,39 @@ proof
 
       show ?thesis
       proof (cases "tree_at (it' c) is")
-        case INode
-        hence "\<not> isHNode (tree_at (it' c) is)" by simp
-        from iwf_length_inPorts_not_HNode[OF iwf_it[OF `c \<in> set conclusions`]  `is \<in> it_paths (it' c)` this]
-             `i < length (inPorts' (iNodeOf (tree_at (it' c) is)))`
-        have "i < length (iAnts (tree_at (it' c) is))" by simp
-        with `is \<in> it_paths (it' c)`
-        have "is@[i] \<in> it_paths (it' c)" by (rule it_path_SnocI)
-        from `c \<in> set conclusions` this
-        have "edge_at c (is@[i]) \<in> edges" by (rule regular_edge)
-        moreover
-        have "snd (edge_at c (is@[i])) = ((c, 0 # is),  inPorts' (iNodeOf (tree_at (it' c) is)) ! i)"
-          by (simp add: edge_to_def)
-        ultimately
-        show ?thesis by (auto simp add: Cons `p = _` simp del: snd_edge_at)
-      next
-        case (HNode n s)
-        from `c \<in> set conclusions` `is \<in> it_paths (it' c)`  this
-        have "hyp_edge_at c is n s \<in> edges"..
-        moreover
-        from HNode `p |\<in>| inPorts (iNodeOf (tree_at (it' c) is))`
-        have [simp]: "p = plain_ant anyP" by simp
-
-        have "snd (hyp_edge_at c is n s) = ((c, 0 # is), p)"
-          by (simp add: hyp_edge_to_def)
-        ultimately
-        show ?thesis by (auto simp add: Cons simp del: snd_hyp_edge_at)
+        case [simp]: (Node r ants)
+        show ?thesis
+        proof(cases r)
+          case I
+          hence "\<not> isHNode (tree_at (it' c) is)" by simp
+          from iwf_length_inPorts_not_HNode[OF iwf_it[OF `c \<in> set conclusions`]  `is \<in> it_paths (it' c)` this]
+               `i < length (inPorts' (iNodeOf (tree_at (it' c) is)))`
+          have "i < length (children (tree_at (it' c) is))" by simp
+          with `is \<in> it_paths (it' c)`
+          have "is@[i] \<in> it_paths (it' c)" by (rule it_path_SnocI)
+          from `c \<in> set conclusions` this
+          have "edge_at c (is@[i]) \<in> edges" by (rule regular_edge)
+          moreover
+          have "snd (edge_at c (is@[i])) = ((c, 0 # is),  inPorts' (iNodeOf (tree_at (it' c) is)) ! i)"
+            by (simp add: edge_to_def)
+          ultimately
+          show ?thesis by (auto simp add: Cons `p = _` simp del: snd_edge_at)
+        next
+          case (H n s)
+          hence "tree_at (it' c) is = HNode n s ants" by simp
+          from `c \<in> set conclusions` `is \<in> it_paths (it' c)`  this
+          have "hyp_edge_at c is n s \<in> edges"..
+          moreover
+          from H `p |\<in>| inPorts (iNodeOf (tree_at (it' c) is))`
+          have [simp]: "p = plain_ant anyP" by simp
+  
+          have "snd (hyp_edge_at c is n s) = ((c, 0 # is), p)"
+            by (simp add: hyp_edge_to_def)
+          ultimately
+          show ?thesis by (auto simp add: Cons simp del: snd_hyp_edge_at)
+        qed
       qed
-    qed
+     qed
    qed
 qed
 
@@ -540,14 +544,14 @@ proof
       finally show ?thesis.
   qed
   next
-    case (hyp_edge c "is" n s)
+    case (hyp_edge c "is" n s ants)
     let ?f = "subst s (freshen n anyP)"
     let ?h = "hyp_port_h_for (it' c) is ?f"
     let ?his = "hyp_port_path_for (it' c) is ?f"
     let "?t1" = "tree_at (it' c) ?his"
     let "?t2" = "tree_at (it' c) is"
 
-    from `c \<in> set conclusions` `is \<in> it_paths (it' c)` `tree_at (it' c) is = HNode n s`
+    from `c \<in> set conclusions` `is \<in> it_paths (it' c)` `tree_at (it' c) is = HNode n s ants`
     have "?f \<in> hyps_along (it' c) is"
       by (rule hyps_exist')
 
@@ -633,13 +637,14 @@ proof
   have "c = c' \<and> is = 0 # is'''' \<and> var \<in> a_fresh (inPorts' (iNodeOf (tree_at (it' c') is'''')) ! i')"
     unfolding fresh_at_def' using `v |\<in>| vertices`  `v' |\<in>| vertices`
     apply (cases "is")
-    apply (auto split: if_splits simp add:  iAnnot_globalize it_paths_butlast `v=_` `v'=_` `is'=_`)
+    apply (auto split: if_splits simp add:  iAnnot_globalize it_paths_butlast `v=_` `v'=_` `is'=_` simp del: iAnnot.simps)
     done
   hence "c' = c" and "is = 0 # is''''" and "var \<in> a_fresh (inPorts' (iNodeOf (tree_at (it' c') is'''')) ! i')" by simp_all
 
   from `(is''''@[i']) \<in> it_paths (it' c')`
   have "i' < length (inPorts' (nodeOf (c, is)))"
-    by (auto elim!: it_paths_SnocE simp add: `is=_` `c' = _` order.strict_trans2 iwf_length_inPorts[OF iwf_it[OF `c \<in> set conclusions`]])
+    using iwf_length_inPorts[OF iwf_it[OF `c \<in> set conclusions`]]
+    by (auto elim!: it_paths_SnocE simp add: `is=_` `c' = _` order.strict_trans2)
 
   have "nodeOf (c, is) \<in> sset nodes"
     unfolding `is = _` `c' = _` nodeOf.simps

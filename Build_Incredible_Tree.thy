@@ -67,7 +67,7 @@ proof(induction)
       obtain s where "subst s anyP = c" by atomize_elim (rule anyP_is_any)
       hence [simp]: "subst s (freshen undefined anyP) = c" by (simp add: lconsts_anyP freshen_closed)
   
-      let "?it" = "HNode undefined s ::  ('form, 'rule, 'subst, 'var) itree"
+      let "?it" = "HNode undefined s [] ::  ('form, 'rule, 'subst, 'var) itree"
   
       from  `c |\<in>| \<Gamma>` False
       have "local_iwf ?it (\<Gamma> \<turnstile> c)" by (auto intro: iwfH)
