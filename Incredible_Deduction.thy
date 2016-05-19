@@ -308,8 +308,8 @@ using assms
 by induction (auto intro: terminal_path.intros)
 end
 
-text \<open>An acyclic path is one where there are no non-trivial cyclic paths (disregarding
-edges that are local hypotheses -- these are naturally and benignly cyclic.\<close>
+text \<open>An acyclic graph is one where there are no non-trivial cyclic paths (disregarding
+edges that are local hypotheses -- these are naturally and benignly cyclic).\<close>
 
 locale Acyclic_Graph = Scoped_Graph +
   assumes hyps_free_acyclic: "path v v pth \<Longrightarrow> hyps_free pth \<Longrightarrow> pth = []"
@@ -418,7 +418,7 @@ text \<open>A saturated graph is one where every input port is incident to an ed
 locale Saturated_Graph = Port_Graph +
   assumes saturated: "valid_in_port (v,p) \<Longrightarrow> \<exists> e \<in> edges . snd e = (v,p)"
 
-text \<open>These four conditions make up an well-shaped graphs.\<close>
+text \<open>These four conditions make up a well-shaped graph.\<close>
 
 locale Well_Shaped_Graph =  Well_Scoped_Graph + Acyclic_Graph + Saturated_Graph + Pruned_Port_Graph
 

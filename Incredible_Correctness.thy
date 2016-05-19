@@ -6,7 +6,7 @@ begin
 
 text \<open>
 In this theory, we prove that if we have a graph that proves a given abstract task (which is
-represented as the context @{term Tasked_Proof_Graph}, then we can prove @{term solved}.
+represented as the context @{term Tasked_Proof_Graph}), then we can prove @{term solved}.
 \<close>
 
 lemma ffUnion_fempty[simp]: "ffUnion fempty = fempty"
