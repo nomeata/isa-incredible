@@ -12,8 +12,19 @@ datatype prop_rule = andI | andE | impI | impE
 definition prop_rules :: "prop_rule stream"
   where "prop_rules = cycle [andI, andE, impI, impE]"
 
-lemma sset_cycle [simp]: "sset (cycle xs) = set xs"
-  sorry
+lemma sset_cycle [simp]: "xs \<noteq> [] \<Longrightarrow> sset (cycle xs) = set xs"
+proof (intro set_eqI iffI)
+  fix x
+  assume "x \<in> sset (cycle xs)"
+    and "xs \<noteq> []"
+  then show "x \<in> set xs"
+    by (induction "cycle xs" arbitrary: xs rule: sset_induct) (case_tac xs; fastforce)+
+next
+  fix x
+  assume "xs \<noteq> []" and "x \<in> set xs"
+  then show "x \<in> sset (cycle xs)"
+    by (metis UnI1 cycle_decomp sset_shift)
+qed
 
 lemma iR_prop_rules [simp]: "i.R prop_rules = {andI, andE, impI, impE}"
   unfolding prop_rules_def by simp
