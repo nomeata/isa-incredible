@@ -1,5 +1,4 @@
 theory Incredible_Propositional imports
-  Natural_Deduction
   Abstract_Rules_To_Incredible
   Propositional_Formulas
 begin
@@ -30,7 +29,7 @@ next
     by (metis UnI1 cycle_decomp sset_shift)
 qed
 
-lemma iR_prop_rules [simp]: "i.R prop_rules = {andI, andE, impI, impE}"
+lemma iR_prop_rules [simp]: "sset prop_rules = {andI, andE, impI, impE}"
   unfolding prop_rules_def by simp
 
 text \<open>Just some short notation.\<close>
@@ -67,15 +66,15 @@ interpretation propositional: Abstract_Rules
   consequent
   prop_rules
 proof
-  show "\<forall>xs\<in>i.R prop_rules. consequent xs \<noteq> []"
+  show "\<forall>xs\<in>sset prop_rules. consequent xs \<noteq> []"
     unfolding prop_rules_def
     using consequent.elims by blast
 next
-  show "\<forall>xs\<in>i.R prop_rules. \<Union>((\<lambda>_. {}) ` set (consequent xs)) = {}"
+  show "\<forall>xs\<in>sset prop_rules. \<Union>((\<lambda>_. {}) ` set (consequent xs)) = {}"
     by clarsimp
 next
   fix i' r i ia
-  assume "r \<in> i.R prop_rules"
+  assume "r \<in> sset prop_rules"
     and "ia < length (antecedent r)"
     and "i' < length (antecedent r)"
   then show "a_fresh (antecedent r ! ia) \<inter> a_fresh (antecedent r ! i') = {} \<or> ia = i'"

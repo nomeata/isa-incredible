@@ -1,6 +1,7 @@
 theory Incredible_Propositional_Tasks
-imports Incredible_Propositional
+imports
   Incredible_Completeness
+  Incredible_Propositional
 begin
 
 context ND_Rules_Inst begin
