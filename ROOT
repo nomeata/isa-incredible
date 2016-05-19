@@ -9,6 +9,7 @@ session Incredible (AFP) = HOLCF +
     "~~/src/HOL/Library/Countable"
   theories
     "Incredible_Everything"
+    "Incredible_Propositional_Tasks"
   document_files
     "root.bib"
     "root.tex"
