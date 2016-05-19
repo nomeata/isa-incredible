@@ -25,8 +25,8 @@ datatype ('form,'rule,'subst,'var) itnode =
   | H (iAnnot': "nat")
       (iSubst': "'subst")
 
-abbreviation "INode n p i s ants \<equiv> Node (I n p i s) ants"
-abbreviation "HNode i s ants \<equiv> Node (H i s) ants"
+abbreviation "INode n p i s ants \<equiv> RNode (I n p i s) ants"
+abbreviation "HNode i s ants \<equiv> RNode (H i s) ants"
 
 type_synonym ('form,'rule,'subst,'var) itree = "('form,'rule,'subst,'var) itnode rose_tree"
 
@@ -132,7 +132,7 @@ lemma iwf_length_inPorts:
   shows "length (iAnts (tree_at t is)) \<le> length (inPorts' (iNodeOf (tree_at t is)))"
   using assms
   by (induction arbitrary: "is" rule: iwf.induct)
-     (auto elim!: it_paths_NodeE dest: list_all2_lengthD list_all2_nthD2)
+     (auto elim!: it_paths_RNodeE dest: list_all2_lengthD list_all2_nthD2)
 
 lemma iwf_local_not_in_subst:
   assumes "local_iwf t ent"
@@ -141,7 +141,7 @@ lemma iwf_local_not_in_subst:
   shows "freshenLC (iAnnot (tree_at t is)) var \<notin> subst_lconsts (iSubst (tree_at t is))"
   using assms
   by (induction arbitrary: "is" rule: iwf.induct)
-     (auto 4 4 elim!: it_paths_NodeE local_fresh_check.cases dest: list_all2_lengthD list_all2_nthD2)
+     (auto 4 4 elim!: it_paths_RNodeE local_fresh_check.cases dest: list_all2_lengthD list_all2_nthD2)
   
 lemma iwf_length_inPorts_not_HNode:
   assumes "iwf fc t ent"
@@ -150,17 +150,17 @@ lemma iwf_length_inPorts_not_HNode:
   shows "length (iAnts (tree_at t is)) = length (inPorts' (iNodeOf (tree_at t is)))"
   using assms
   by (induction arbitrary: "is" rule: iwf.induct)
-     (auto 4 4 elim!: it_paths_NodeE  dest: list_all2_lengthD list_all2_nthD2)
+     (auto 4 4 elim!: it_paths_RNodeE  dest: list_all2_lengthD list_all2_nthD2)
 
 lemma iNodeOf_outPorts:
   "iwf fc t ent \<Longrightarrow> is \<in> it_paths t \<Longrightarrow> outPorts (iNodeOf (tree_at t is)) = {||} \<Longrightarrow> False"
   by (induction arbitrary: "is" rule: iwf.induct)
-     (auto 4 4 elim!: it_paths_NodeE  dest: list_all2_lengthD list_all2_nthD2)
+     (auto 4 4 elim!: it_paths_RNodeE  dest: list_all2_lengthD list_all2_nthD2)
 
 lemma iNodeOf_tree_at:
   "iwf fc t ent \<Longrightarrow> is \<in> it_paths t \<Longrightarrow> iNodeOf (tree_at t is) \<in> sset nodes"
   by (induction arbitrary: "is" rule: iwf.induct)
-     (auto 4 4 elim!: it_paths_NodeE  dest: list_all2_lengthD list_all2_nthD2)
+     (auto 4 4 elim!: it_paths_RNodeE  dest: list_all2_lengthD list_all2_nthD2)
 
 lemma iwf_outPort: 
   assumes "iwf fc t ent"
@@ -168,7 +168,7 @@ lemma iwf_outPort:
   shows "Reg (iOutPort (tree_at t is)) |\<in>| outPorts (iNodeOf (tree_at t is))"
   using assms
   by (induction arbitrary: "is" rule: iwf.induct)
-     (auto 4 4 elim!: it_paths_NodeE  dest: list_all2_lengthD list_all2_nthD2)
+     (auto 4 4 elim!: it_paths_RNodeE  dest: list_all2_lengthD list_all2_nthD2)
 
 inductive_set hyps_along for t "is" where
  "prefixeq (is'@[i]) is \<Longrightarrow>
@@ -407,12 +407,12 @@ fun globalize_node :: "nat list \<Rightarrow> ('var \<Rightarrow> 'var) \<Righta
   | "globalize_node is f (H i s) = H (isidx is) (subst_renameLCs f s)"
 
 fun globalize :: "nat list \<Rightarrow> ('var \<Rightarrow> 'var) \<Rightarrow> ('form,'rule,'subst,'var) itree \<Rightarrow> ('form,'rule,'subst,'var) itree" where
-  "globalize is f (Node r ants) = Node 
+  "globalize is f (RNode r ants) = RNode 
     (globalize_node is f r)
     (mapWithIndex (\<lambda> i' t.
       globalize (is@[i'])
-                (rerename (a_fresh (inPorts' (iNodeOf (Node r ants)) ! i'))
-                          (iAnnot (Node r ants)) (isidx is) f)
+                (rerename (a_fresh (inPorts' (iNodeOf (RNode r ants)) ! i'))
+                          (iAnnot (RNode r ants)) (isidx is) f)
                 t
       ) ants)"
 
@@ -423,7 +423,7 @@ lemma iAnnot_globalize:
   assumes "is' \<in> it_paths (globalize is f t)"
   shows  "iAnnot (tree_at (globalize is f t) is') = isidx (is@is')"
   using assms
-  by (induction t arbitrary: f "is" is') (auto elim!: it_paths_NodeE)
+  by (induction t arbitrary: f "is" is') (auto elim!: it_paths_RNodeE)
 
 lemma all_local_consts_listed':
   assumes "n \<in> sset nodes"
@@ -609,7 +609,7 @@ lemma globalize_local_consts:
   apply (induction "is" f t  arbitrary: is' rule:globalize.induct)
   apply (rename_tac "is" f r ants is')
   apply (case_tac r)
-  apply (auto simp add: subst_lconsts_subst_renameLCs lconsts_renameLCs elim!: it_paths_NodeE  dest!: subsetD[OF range_rerename])
+  apply (auto simp add: subst_lconsts_subst_renameLCs lconsts_renameLCs elim!: it_paths_RNodeE  dest!: subsetD[OF range_rerename])
    apply (rename_tac a list)
    apply (erule_tac x = "(ants ! a)" in meta_allE)
    apply (erule_tac x = "a" in meta_allE)

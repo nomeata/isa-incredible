@@ -8,7 +8,7 @@ the generally useful part of that development.\<close>
 subsubsection \<open>The rose tree data type\<close>
 
 
-datatype 'a rose_tree = Node (root: 'a) (children:  "'a rose_tree list")
+datatype 'a rose_tree = RNode (root: 'a) (children:  "'a rose_tree list")
 
 subsubsection \<open>The set of paths in a rose tree\<close>
 
@@ -20,7 +20,7 @@ inductive it_pathsP :: "'a rose_tree \<Rightarrow> nat list \<Rightarrow> bool" 
 
 inductive_cases it_pathP_ConsE: "it_pathsP t (i#is)"
 
-inductive_cases it_pathP_NodeE: "it_pathsP (Node r ants) is"
+inductive_cases it_pathP_RNodeE: "it_pathsP (RNode r ants) is"
 
 definition it_paths:: "'a rose_tree \<Rightarrow> nat list set"  where
   "it_paths t = Collect (it_pathsP t)"
@@ -32,12 +32,12 @@ lemmas it_paths_intros [intro?] = it_pathsP.intros[to_set]
 lemmas it_paths_induct [consumes 1, induct set: it_paths] = it_pathsP.induct[to_set]
 lemmas it_paths_cases [consumes 1, cases set: it_paths] = it_pathsP.cases[to_set]
 lemmas it_paths_ConsE = it_pathP_ConsE[to_set]
-lemmas it_paths_NodeE = it_pathP_NodeE[to_set]
+lemmas it_paths_RNodeE = it_pathP_RNodeE[to_set]
 lemmas it_paths_simps = it_pathsP.simps[to_set]
 
 lemmas it_paths_intros(1)[simp]
 
-lemma it_paths_Node_Nil[simp]: "it_paths (Node r []) = {[]}"
+lemma it_paths_RNode_Nil[simp]: "it_paths (RNode r []) = {[]}"
   by (auto elim: it_paths_cases)
 
 lemma it_paths_Union: "it_paths t \<subseteq> insert [] (Union (((\<lambda> (i,t). (op # i) ` it_paths t) ` set (List.enumerate (0::nat) (children t)))))"
@@ -91,7 +91,7 @@ lemma it_path_SnocI:
   shows "is @ [i] \<in> it_paths t"
   using assms
   by (induction t arbitrary: "is" i)
-     (auto 4 4  elim!: it_paths_NodeE intro: it_paths_intros)
+     (auto 4 4  elim!: it_paths_RNodeE intro: it_paths_intros)
 
 
 end

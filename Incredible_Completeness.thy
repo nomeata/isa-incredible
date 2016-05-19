@@ -443,7 +443,7 @@ proof
 
       show ?thesis
       proof (cases "tree_at (it' c) is")
-        case [simp]: (Node r ants)
+        case [simp]: (RNode r ants)
         show ?thesis
         proof(cases r)
           case I
