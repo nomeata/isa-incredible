@@ -28,8 +28,6 @@ end
 
 context begin
 
-subsubsection \<open>Task 1.1\<close>
-
 text \<open>A typical task with local constants:: @{text "\<forall>x. Q x \<longrightarrow> Q x"}\<close>
 
 text \<open>First the task is defined as an @{term Abstract_Task}.\<close>
