@@ -1,4 +1,4 @@
-\documentclass[11pt,a4paper,parskip=half]{scrartcl}
+\documentclass[11pt,DIV16,a4paper,parskip=half]{scrartcl}
 \usepackage{isabelle,isabellesym}
 \usepackage[only,bigsqcap]{stmaryrd}
 
@@ -67,19 +67,21 @@ when we consider such a graph a valid proof graph. The present Isabelle
 formalization implements these definitions in Isabelle, and furthermore proves
 that such proof graphs are just as powerful as natural deduction.
 
-All this happens with regard to an abstract set of formulas (Theory
-\isa{Abstract_Formula}) and an abstract set of logic rules (Theory
+All this happens with regard to an abstract set of formulas (theory
+\isa{Abstract_Formula}) and an abstract set of logic rules (theory
 \isa{Abstract_Rules}) and can thus be instantiated with various logics.
 
 This formalization covers the following aspects:
 \begin{itemize}
 \item We formalize the definition of port graphs, proof graphs and the conditions for such a proof
-      graph to be a valid graph (Theory \isa{Incredible_Deduction}).
-\item We provide a formal description of natural deduction (Theory \isa{Natural_Deduction}).
+      graph to be a valid graph (theory \isa{Incredible_Deduction}).
+\item We provide a formal description of natural deduction (theory \isa{Natural_Deduction}), 
+      which connects to the existing theories in the AFP entry “Abstract
+      Completeness” \cite{Abstract_Completeness-AFP}.
 \item For every proof graph, we construct a corresponding natural deduction derivation tree
-      (Theory  \isa{Incredible_Correctness}).
+      (theory  \isa{Incredible_Correctness}).
 \item Conversely, if we have a natural deduction derivation tree, we can construct a proof graph
-      thereof (Theory \isa{Incredible_Completeness}).
+      thereof (theory \isa{Incredible_Completeness}).
       
       This is the much harder direction, mostly because the freshness side condition for locally
       fixed constants (such as in the introduction rule for the universal quantifier) is a local
@@ -90,8 +92,7 @@ This formalization covers the following aspects:
 \end{itemize}
 
 It does not cover the unification procedure and expects that a suitable instantiation is already
-given. It also does not cover the creation and use of custom blocks (which corresponds to defining 
-and use of lemmas in Isabelle).
+given. It also does not cover the creation and use of custom blocks, which abstract over proofs and thus correspond to lemmas in Isabelle.
 
 
 \subsection*{Acknowledgements}
@@ -148,5 +149,6 @@ small examples.
 \theory{Incredible\string_Propositional\string_Tasks}
 \theory{Predicate\string_Formulas}
 \theory{Incredible\string_Predicate}
+\theory{Incredible\string_Predicate\string_Tasks}
 
 \end{document}

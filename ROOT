@@ -10,7 +10,7 @@ session Incredible (AFP) = HOL +
   theories
     "Incredible_Everything"
     "Incredible_Propositional_Tasks"
-    "Incredible_Predicate"
+    "Incredible_Predicate_Tasks"
   document_files
     "root.bib"
     "root.tex"
