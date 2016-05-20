@@ -3,6 +3,7 @@ imports
   Main 
   "~~/src/HOL/Library/FSet"
   "~~/src/HOL/Library/Stream"
+  "~~/src/HOL/Eisbach/Eisbach"
   Incredible_Signatures
 begin
 
@@ -331,11 +332,11 @@ next
     then obtain pth1 e' pth2 where "pth = pth1@[e']@pth2" and "v\<^sub>1 = fst (fst e')"
       apply (atomize_elim)
       apply (induction pth)
-      apply simp
+      apply (solves simp)
       apply (auto)
-      apply (rule exI[where x = "[]"])
-      apply simp
-      by (metis Cons_eq_appendI image_eqI prod.sel(1))
+      apply (solves \<open>rule exI[where x = "[]"]; simp\<close>)
+      apply (metis Cons_eq_appendI image_eqI prod.sel(1))
+      done
     with terminal_path_is_path[OF `terminal_path v\<^sub>2 v' pth`]
     have "path v\<^sub>2 v\<^sub>1 pth1" by (simp add:  path_split2 edge_begin_tup)
     with `((v\<^sub>1, p\<^sub>1), (v\<^sub>2, p\<^sub>2)) \<in> _`

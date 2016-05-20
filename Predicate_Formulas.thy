@@ -1,8 +1,9 @@
 theory Predicate_Formulas
 imports
-  Abstract_Formula
   "~~/src/HOL/Library/Countable"
   "~~/src/HOL/Library/Infinite_Set"
+  "~~/src/HOL/Eisbach/Eisbach"
+  Abstract_Formula
 begin
 
 text \<open>This theory contains an example instantiation of @{term Abstract_Formulas} with an 
@@ -39,8 +40,8 @@ definition fresh_for :: "var set \<Rightarrow> var" where
 lemma fresh_for_fresh: "finite V \<Longrightarrow> fresh_for V \<notin> V"
   unfolding fresh_for_def
   apply (rule someI2_ex)
-  using infinite_nat_iff_unbounded_le
-  apply auto
+   using infinite_nat_iff_unbounded_le
+   apply auto
   done
 
 text \<open>Free variables\<close>
@@ -173,8 +174,8 @@ lemma subst'_Nil[simp]: "subst' [] f = f"
 
 lemma lc_subst': "lc (subst' s f) \<subseteq> lc f \<union> lc_subst s"
   apply (induction s f rule: subst'.induct)
-  apply (auto split: option.splits dest: map_of_SomeD  dest!: set_mp[OF lc_subst1] simp add: fv_subst_def)
-  apply (fastforce dest!: set_zip_rightD)+
+     apply (auto split: option.splits dest: map_of_SomeD  dest!: set_mp[OF lc_subst1] simp add: fv_subst_def)
+   apply (fastforce dest!: set_zip_rightD)+
   done
 
 lemma ran_map_option_comp[simp]:
@@ -195,14 +196,14 @@ lemma map_apsnd_zip[simp]: "map (apsnd f) (zip a b) = zip a (map f b)"
 
 lemma map_lc_subst'[simp]: "map_lc p (subst' s f) = subst' (map_lc_subst p s) (map_lc p f)"
   apply (induction s f rule: subst'.induct)
-  apply (auto split: option.splits dest: map_of_SomeD   simp add: map_of_map_apsnd Let_def)
-  apply (subst subst'.simps, auto split: option.splits)[1]
-  apply (subst subst'.simps, auto split: option.splits cong: map_cong)[1]
-  apply (subst subst'.simps, auto split: option.splits)[1]
-  apply (subst subst'.simps, auto split: option.splits)[1]
-  apply (subst subst'.simps, auto split: option.splits)[1]
-  apply (subst subst'.simps, auto split: option.splits, simp only: Let_def map_lc.simps)[1]
-  apply (subst subst'.simps, auto split: option.splits)[1]
+     apply (auto split: option.splits dest: map_of_SomeD simp add: map_of_map_apsnd Let_def)
+        apply (solves \<open>(subst subst'.simps, auto split: option.splits)[1]\<close>)
+       apply (solves \<open>(subst subst'.simps, auto split: option.splits cong: map_cong)[1]\<close>)
+      apply (solves \<open>(subst subst'.simps, auto split: option.splits)[1]\<close>)
+     apply (solves \<open>(subst subst'.simps, auto split: option.splits)[1]\<close>)
+    apply (solves \<open>(subst subst'.simps, auto split: option.splits)[1]\<close>)
+   apply (solves \<open>(subst subst'.simps, auto split: option.splits, simp only: Let_def map_lc.simps)[1]\<close>)
+  apply (solves \<open>(subst subst'.simps, auto split: option.splits)[1]\<close>)
 done
 
 text \<open>Since subst' happily renames quantified variables, we have a simple wrapper that
@@ -241,20 +242,20 @@ interpretation predicate: Abstract_Formulas
   map_lc_subst
   "Var 0 []"
   apply unfold_locales
-  apply fastforce
-  apply fastforce
-  apply fastforce
-  apply fastforce
-  apply fastforce
-  apply (rule lc_subst)
-  apply fastforce
-  apply fastforce
-  apply fastforce
-  apply (metis map_lc_subst_cong)
-  apply (rule lc_subst_map_lc_subst)
-  apply simp
-  apply (rule exI[where x = "[]"], simp)
-  apply (rename_tac f, rule_tac x = "[(0, ([],f))]" in exI, simp)
+  apply (solves fastforce)
+  apply (solves fastforce)
+  apply (solves fastforce)
+  apply (solves fastforce)
+  apply (solves fastforce)
+  apply (solves \<open>rule lc_subst\<close>)
+  apply (solves fastforce)
+  apply (solves fastforce)
+  apply (solves fastforce)
+  apply (solves \<open>metis map_lc_subst_cong\<close>)
+  apply (solves \<open>rule lc_subst_map_lc_subst\<close>)
+  apply (solves simp)
+  apply (solves \<open>rule exI[where x = "[]"], simp\<close>)
+  apply (solves \<open>rename_tac f, rule_tac x = "[(0, ([],f))]" in exI, simp\<close>)
   done
 
 declare predicate.subst_lconsts_empty_subst [simp del]

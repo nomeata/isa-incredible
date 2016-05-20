@@ -2,6 +2,7 @@ theory Incredible_Predicate_Tasks
 imports
   Incredible_Completeness
   Incredible_Predicate
+  "~~/src/HOL/Eisbach/Eisbach"
 begin
 
 declare One_nat_def [simp del]
@@ -97,39 +98,37 @@ apply clarsimp
 apply (rule conjI)
 
  apply (rule task.wf)
-   apply (auto simp add: stream.set_map task.n_rules_def)[1]
+   apply (solves \<open>(auto simp add: stream.set_map task.n_rules_def)[1]\<close>)
   apply clarsimp
   apply (rule task.eff_NatRuleI)
-      apply (rule task.natEff_Inst.intros)
-      apply simp
+      apply (solves \<open>rule task.natEff_Inst.intros;simp\<close>)
      apply clarsimp     
      apply (rule conjI)
-      apply simp
-     apply (rule substI1)
+      apply (solves \<open>simp\<close>)
+     apply (solves \<open>rule substI1\<close>)
     apply (simp add: predicate.f_antecedent_def predicate.freshen_def)
     apply (subst antecedent.sel(2))
-    apply simp
-   apply simp
-  apply simp
+    apply (solves \<open>simp\<close>)
+   apply (solves \<open>simp\<close>)
+  apply (solves \<open>simp\<close>)
  apply simp
 
  apply (rule task.wf)
-   apply (auto simp add: stream.set_map task.n_rules_def)[1]
+   apply (solves \<open>(auto simp add: stream.set_map task.n_rules_def)[1]\<close>)
   apply clarsimp
   apply (rule task.eff_NatRuleI)
-      apply (rule task.natEff_Inst.intros)
-      apply simp
+      apply (solves \<open>rule task.natEff_Inst.intros; simp\<close>)
      apply clarsimp     
      apply (rule conjI)
-      apply simp
-     apply (rule substI2)
-    apply (simp add: predicate.f_antecedent_def predicate.freshen_def)
-   apply simp
-  apply (simp add: predicate.f_antecedent_def)
+      apply (solves \<open>simp\<close>)
+     apply (solves \<open>rule substI2\<close>)
+    apply (solves \<open>simp add: predicate.f_antecedent_def predicate.freshen_def\<close>)
+   apply (solves \<open>simp\<close>)
+  apply (solves \<open>simp add: predicate.f_antecedent_def\<close>)
  apply simp
 
- apply (auto intro: task.wf intro!: task.eff.intros(1))[1]
-apply (rule tfinite.intros, simp)+
+ apply (solves \<open>(auto intro: task.wf intro!: task.eff.intros(1))[1]\<close>)
+apply (solves \<open>(rule tfinite.intros, simp)+\<close>)
 done
 
 abbreviation vertices where "vertices \<equiv> {|0::nat,1,2 |}"

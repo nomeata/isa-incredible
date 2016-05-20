@@ -46,7 +46,8 @@ proof -
   moreover have "inj ((from_nat::nat \<Rightarrow> 'b) \<circ> f \<circ> (to_nat::'a \<Rightarrow> nat))"
     apply (rule injI)
     apply auto
-    by (metis bij_betw_inv_into_left f_def f_inv_into_f f_range_trans from_nat_def image_eqI rangeI to_nat_split)
+    apply (metis bij_betw_inv_into_left f_def f_inv_into_f f_range_trans from_nat_def image_eqI rangeI to_nat_split)
+    done
   ultimately show ?thesis by (blast intro: bijI)
 qed
   

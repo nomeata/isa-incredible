@@ -92,11 +92,8 @@ fun inst where
  |"inst (c, i#is) = iSubst (tree_at (it' c) is)" 
 
 lemma terminal_is_nil[simp]: "v |\<in>| vertices \<Longrightarrow> outPorts (nodeOf v) = {||} \<longleftrightarrow> snd v = []"
- apply (induction v rule: nodeOf.induct)
- apply auto
- apply (erule (1) iNodeOf_outPorts[rotated])
- apply (erule iwf_it)
- done
+ by (induction v rule: nodeOf.induct)
+    (auto elim: iNodeOf_outPorts[rotated] iwf_it)
 
 sublocale Vertex_Graph nodes inPorts outPorts vertices nodeOf.
 

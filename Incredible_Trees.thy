@@ -115,15 +115,16 @@ lemma iwf_edge_match:
      = subst (iSubst (tree_at t is)) (freshen (iAnnot (tree_at t is)) (a_conc (inPorts' (iNodeOf (tree_at t is)) ! i)))"
   using assms
   apply (induction arbitrary: "is" i)
-   apply (auto elim!: it_paths_SnocE)
-  apply (rename_tac "is" i)
-  apply (case_tac "is")
-   apply (auto dest!: list_all2_nthD2)[1]
-   using iwf_subst_freshen_outPort
-   apply auto[1]
-  apply (auto elim!: it_paths_ConsE dest!: list_all2_nthD2)
-  using it_path_SnocI
-  apply blast
+   apply (auto elim!: it_paths_SnocE)[1]
+   apply (rename_tac "is" i)
+   apply (case_tac "is")
+    apply (auto dest!: list_all2_nthD2)[1]
+    using iwf_subst_freshen_outPort
+    apply (solves \<open>(auto)[1]\<close>)
+   apply (auto elim!: it_paths_ConsE dest!: list_all2_nthD2)[1]
+   using it_path_SnocI
+   apply (solves blast)
+  apply (solves auto)
   done
 
 lemma iwf_length_inPorts:
@@ -503,7 +504,7 @@ proof (induction t "\<Gamma> \<turnstile> c" arbitrary: "is" f \<Gamma> c rule: 
       assume "hyp |\<in>| hyps_for n (inPorts' n ! i')"
       hence "labelsOut n hyp |\<in>| a_hyps (inPorts' n ! i')"
         apply (cases hyp)
-        apply auto
+        apply (solves simp)
         apply (cases n)
         apply (auto split: if_splits)
         done
@@ -609,17 +610,9 @@ lemma globalize_local_consts:
   apply (induction "is" f t  arbitrary: is' rule:globalize.induct)
   apply (rename_tac "is" f r ants is')
   apply (case_tac r)
-  apply (auto simp add: subst_lconsts_subst_renameLCs lconsts_renameLCs elim!: it_paths_RNodeE  dest!: subsetD[OF range_rerename])
-   apply (rename_tac a list)
-   apply (erule_tac x = "(ants ! a)" in meta_allE)
-   apply (erule_tac x = "a" in meta_allE)
-   apply (erule_tac x = "list" in meta_allE)
-   apply (auto  dest!: subsetD[OF  range_rerename])
-  apply (rename_tac a list)
-  apply (erule_tac x = "(ants ! a)" in meta_allE)
-  apply (erule_tac x = "a" in meta_allE)
-  apply (erule_tac x = "list" in meta_allE)
-  apply (auto  dest!: subsetD[OF  range_rerename])
+   apply (auto simp add: subst_lconsts_subst_renameLCs  elim!: it_paths_RNodeE)
+   apply (solves \<open>force dest!: subsetD[OF range_rerename]\<close>)
+  apply (solves \<open>force dest!: subsetD[OF range_rerename]\<close>)
   done
   
 lemma iwf_globalize':

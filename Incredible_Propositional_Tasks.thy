@@ -63,11 +63,11 @@ apply (rule_tac x="Node ({|A|} \<turnstile> A, Axiom) {||}" in exI)
 apply clarsimp
 apply (rule conjI)
  apply (rule task1_1.wf)
-   apply clarsimp
+   apply (solves clarsimp)
   apply clarsimp
   apply (rule task1_1.eff.intros(1))
-  apply simp
- apply clarsimp
+  apply (solves simp)
+ apply (solves clarsimp)
 by (auto intro: tfinite.intros)
 
 
@@ -138,15 +138,15 @@ interpretation Tasked_Proof_Graph
   "id"
   "undefined"
 apply unfold_locales
-        apply simp
-       apply clarsimp
-      apply clarsimp
-     apply clarsimp
-    apply fastforce
-   apply fastforce
-  apply (clarsimp simp add: task1_1.labelAtOut_def task1_1.labelAtIn_def)
- apply clarsimp
-apply clarsimp
+        apply (solves simp)
+       apply (solves clarsimp)
+      apply (solves clarsimp)
+     apply (solves clarsimp)
+    apply (solves fastforce)
+   apply (solves fastforce)
+  apply (solves \<open>clarsimp simp add: task1_1.labelAtOut_def task1_1.labelAtIn_def\<close>)
+ apply (solves clarsimp)
+apply (solves clarsimp)
 done
 
 subsubsection \<open>Task 2.11\<close>
@@ -243,65 +243,61 @@ apply clarsimp
 apply (rule conjI)
 
  apply (rule task1_1.wf)
-   apply clarsimp
-   apply (metis n_impI snth_smap snth_sset)
+   apply (solves \<open>clarsimp; metis n_impI snth_smap snth_sset\<close>)
   apply clarsimp
   apply (rule task1_1.eff_NatRuleI [unfolded propositional.freshen_def, simplified]) apply simp_all[4]
     apply (rule task2_11.natEff_InstI)
-      apply simp
-     apply simp
-    apply simp
+      apply (solves simp)
+     apply (solves simp)
+    apply (solves simp)
    apply (intro conjI; simp; rule xy_update)
-   apply simp
-  apply (auto simp: propositional.f_antecedent_def)[1]
+   apply (solves simp)
+  apply (solves \<open>fastforce simp: propositional.f_antecedent_def\<close>)
  apply clarsimp
 
  apply (rule task1_1.wf)
-   apply clarsimp
-   apply (metis n_impI snth_smap snth_sset)
+   apply (solves \<open>clarsimp; metis n_impI snth_smap snth_sset\<close>)
   apply clarsimp
   apply (rule task1_1.eff_NatRuleI [unfolded propositional.freshen_def, simplified]) apply simp_all[4]
     apply (rule task2_11.natEff_InstI)
-      apply simp
-     apply simp
-    apply simp
+      apply (solves simp)
+     apply (solves simp)
+    apply (solves simp)
    apply (intro conjI; simp; rule xy_update)
-   apply simp
-  apply (auto simp: propositional.f_antecedent_def)[1]
+   apply (solves simp)
+  apply (solves \<open>fastforce simp: propositional.f_antecedent_def\<close>)
  apply clarsimp
 
  apply (rule task1_1.wf)
-   apply clarsimp
-   apply (metis n_impE snth_smap snth_sset)
+   apply (solves \<open>clarsimp; metis n_impE snth_smap snth_sset\<close>)
   apply clarsimp
   apply (rule task1_1.eff_NatRuleI [unfolded propositional.freshen_def, simplified, where s="undefined(''Y'':=C,''X'':=Fun and [A,B])"]) apply simp_all[4]
     apply (rule task2_11.natEff_InstI)
-      apply simp
-     apply simp
-    apply simp
-   apply (intro conjI; simp)
-  apply (simp add: propositional.f_antecedent_def)
+      apply (solves simp)
+     apply (solves simp)
+    apply (solves simp)
+   apply (solves \<open>intro conjI; simp\<close>)
+  apply (solves \<open>simp add: propositional.f_antecedent_def\<close>)
  apply (erule disjE)
 
   apply (auto intro: task1_1.wf intro!: task1_1.eff.intros(1))[1]
 
  apply (rule task1_1.wf)
-   apply clarsimp
-   apply (metis n_andI snth_smap snth_sset)
+   apply (solves \<open>clarsimp; metis n_andI snth_smap snth_sset\<close>)
   apply clarsimp
   apply (rule task1_1.eff_NatRuleI [unfolded propositional.freshen_def, simplified]) apply simp_all[4]
     apply (rule task2_11.natEff_InstI)
-      apply simp
-     apply simp
-    apply simp
+      apply (solves simp)
+     apply (solves simp)
+    apply (solves simp)
    apply (intro conjI; simp; rule xy_update)
-   apply simp
-  apply (simp add: propositional.f_antecedent_def)
+   apply (solves simp)
+  apply (solves \<open>simp add: propositional.f_antecedent_def\<close>)
  apply clarsimp
 
  apply (erule disjE)
-  apply (rule task1_1.wf; auto intro: task1_1.eff.intros(1))
- apply (rule task1_1.wf; auto intro: task1_1.eff.intros(1))
+  apply (solves \<open>rule task1_1.wf; auto intro: task1_1.eff.intros(1)\<close>)
+ apply (solves \<open>rule task1_1.wf; auto intro: task1_1.eff.intros(1)\<close>)
   
 by (rule tfinite.intros; auto)+
 
