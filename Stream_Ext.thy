@@ -1,4 +1,6 @@
-theory Stream_Ext imports Stream begin
+theory Stream_Ext imports
+  "~~/src/HOL/Library/Stream"
+begin
 
 lemma sset_cycle [simp]:
   assumes "xs \<noteq> []" 
